@@ -1,36 +1,62 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# স্ক্যান অ্যান্ড প্রিন্ট (Scan & Print)
 
-## Getting Started
+Automatic printing for print/photocopy shops in Bangladesh. A customer scans the shop's QR code, uploads a PDF,
+chooses black & white or color, pays with bKash (or cash at the counter), and the job prints on the right
+printer automatically.
 
-First, run the development server:
+**Roles**
+
+- **Admin**: Google accounts listed in `ADMIN_EMAILS`. Manages shops, device limits and subscriptions (`/admin`).
+- **Shop owner**: signs in with Google, connects shop PCs and printers, sets prices, bKash and cash mode (`/dashboard`).
+- **Customer**: no login. Uses `/s/<shop-link>` and follows the job at `/j/<id>`.
+
+## Getting started
 
 ```bash
+cp .env.example .env        # then fill in the secrets and Google OAuth credentials
+docker compose up -d        # MongoDB (replica set) + MinIO (bucket created automatically)
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- App: http://localhost:3000
+- MinIO console: http://localhost:9001 (`MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**Google login.** Create an OAuth client (type *Web application*) in Google Cloud Console and add
+`<APP_URL>/api/auth/google/callback` as an authorized redirect URI.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Testing without a printer
 
-## Learn More
+`scripts/dev-agent.mjs` acts like a shop PC with two fake printers. It uses the same API as the real agent.
 
-To learn more about Next.js, take a look at the following resources:
+1. Dashboard → **ডিভাইস** → **কম্পিউটার যুক্ত করুন**, then copy the pairing code.
+2. `npm run dev:agent -- <PAIRING_CODE>`. Later runs reuse the saved token.
+3. Enable the printers in the dashboard, then place an order from `/s/<shop-link>`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## How it works
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+Customer phone ──► Next.js (web + API) ──► MongoDB
+      │ upload (signed form)      ▲
+      ▼                           │ poll / heartbeat (HTTPS)
+    MinIO ◄──── download ──── Print agent on shop PC ──► Windows printers
+```
 
-## Deploy on Vercel
+- Files go straight from the browser to MinIO. The server counts pages with `pdf-lib` to price the job.
+- **bKash**: each shop uses its own Tokenized Checkout (PGW) credentials, stored AES-256-GCM encrypted.
+  Money goes directly to the shop.
+- **Cash**: the job waits until the owner approves it in the dashboard, which plays an alert sound.
+- **Routing** (`lib/jobs.ts`): color jobs go to color devices. Black & white jobs prefer mono devices and the
+  least busy one.
+- **Privacy**: files are deleted right after printing. MinIO also expires anything older than 1 day.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Agent API
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+All agent calls except pairing send `Authorization: Bearer <token>`.
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /api/agent/pair` `{ code, machineName, version }` | Exchange a pairing code for a token |
+| `POST /api/agent/heartbeat` `{ printers: [{ systemName, color, duplex, state }] }` | Report printers (~30s) |
+| `POST /api/agent/jobs/claim` | Get the next job (`fileUrl`, `printer`, `colorMode`, `copies`) |
+| `POST /api/agent/jobs/:id` `{ status: "completed" \| "failed", error? }` | Report the result |

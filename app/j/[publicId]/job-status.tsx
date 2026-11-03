@@ -1,0 +1,227 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import Link from "next/link"
+import { BanknoteIcon, CheckIcon, CircleAlertIcon, PrinterIcon, XCircleIcon } from "lucide-react"
+import { toast } from "sonner"
+import { BkashButton } from "@/components/bkash"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
+import { Spinner } from "@/components/ui/spinner"
+import {
+  COLOR_MODE_LABELS,
+  PAYMENT_METHOD_LABELS,
+  formatNumber,
+  formatTaka,
+  formatToken,
+  type ColorMode,
+  type JobStatus,
+  type PaymentMethod,
+} from "@/lib/constants"
+import type { PublicJobView } from "@/lib/public-shop"
+import { cn } from "@/lib/utils"
+
+const FINAL: JobStatus[] = ["completed", "cancelled"]
+
+const steps = [
+  { label: "পেমেন্ট", reached: ["queued", "printing", "completed"] },
+  { label: "লাইনে", reached: ["queued", "printing", "completed"] },
+  { label: "প্রিন্ট হচ্ছে", reached: ["printing", "completed"] },
+  { label: "সম্পন্ন", reached: ["completed"] },
+]
+
+function headline(job: PublicJobView): { title: string; text: string } {
+  switch (job.status) {
+    case "pending_payment":
+      return { title: "পেমেন্ট সম্পন্ন হয়নি", text: "আবার চেষ্টা করুন অথবা অন্য পদ্ধতিতে পেমেন্ট করুন।" }
+    case "awaiting_approval":
+      return {
+        title: `কাউন্টারে ${formatTaka(job.amount)} দিন`,
+        text: `দোকানদারকে টোকেন ${formatToken(job.token)} দেখান। টাকা নেওয়ার পর প্রিন্ট শুরু হবে।`,
+      }
+    case "queued":
+      return {
+        title: job.queuePosition && job.queuePosition > 1 ? `লাইনে আপনার অবস্থান: ${formatNumber(job.queuePosition)}` : "প্রিন্ট শুরু হতে যাচ্ছে",
+        text: job.deviceName ? `প্রিন্টার: ${job.deviceName}` : "প্রিন্টার প্রস্তুত হলেই প্রিন্ট শুরু হবে।",
+      }
+    case "printing":
+      return { title: "প্রিন্ট হচ্ছে…", text: job.deviceName ? `প্রিন্টার: ${job.deviceName}` : "একটু অপেক্ষা করুন।" }
+    case "completed":
+      return { title: "প্রিন্ট সম্পন্ন!", text: `কাউন্টার থেকে টোকেন ${formatToken(job.token)} দেখিয়ে কাগজ সংগ্রহ করুন।` }
+    case "failed":
+      return { title: "প্রিন্টে সমস্যা হয়েছে", text: "চিন্তা করবেন না — দোকানদারকে টোকেন দেখান, তিনি আবার প্রিন্ট করে দেবেন।" }
+    case "cancelled":
+      return { title: "অর্ডার বাতিল হয়েছে", text: "প্রয়োজনে দোকানের সাথে যোগাযোগ করুন।" }
+    default:
+      return { title: "", text: "" }
+  }
+}
+
+export function JobStatusView({ initial, paymentResult }: { initial: PublicJobView; paymentResult: string | null }) {
+  const [job, setJob] = useState(initial)
+  const [paying, setPaying] = useState<PaymentMethod | null>(null)
+
+  useEffect(() => {
+    if (paymentResult === "cancelled") toast.error("পেমেন্ট বাতিল করা হয়েছে।")
+    if (paymentResult === "failed") toast.error("পেমেন্ট সফল হয়নি।")
+  }, [paymentResult])
+
+  useEffect(() => {
+    if (FINAL.includes(job.status)) return
+    const id = setInterval(async () => {
+      if (document.visibilityState !== "visible") return
+      const response = await fetch(`/api/public/jobs/${job.publicId}`, { cache: "no-store" }).catch(() => null)
+      if (response?.ok) setJob(await response.json())
+    }, 3000)
+    return () => clearInterval(id)
+  }, [job.publicId, job.status])
+
+  async function retry(method: PaymentMethod) {
+    setPaying(method)
+    const response = await fetch(`/api/public/jobs/${job.publicId}/checkout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ colorMode: job.colorMode, copies: job.copies, method }),
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      toast.error(data.error || "কিছু একটা সমস্যা হয়েছে।")
+      return setPaying(null)
+    }
+    window.location.href = data.redirectUrl
+  }
+
+  const { title, text } = headline(job)
+  const showSteps = !["pending_payment", "awaiting_approval", "cancelled", "failed"].includes(job.status)
+
+  return (
+    <Card>
+      <CardHeader className="items-center text-center">
+        <CardDescription>{job.shop.name}</CardDescription>
+        <div className="text-sm text-muted-foreground">আপনার টোকেন</div>
+        <div className="text-6xl font-semibold tracking-tight tabular-nums">{formatToken(job.token)}</div>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-6">
+        <div className="flex flex-col items-center gap-2 text-center">
+          <StatusIcon status={job.status} />
+          <CardTitle className="text-xl">{title}</CardTitle>
+          <p className="text-sm text-muted-foreground">{text}</p>
+        </div>
+
+        {showSteps && (
+          <ol className="grid grid-cols-4 gap-2">
+            {steps.map((step) => {
+              const done = step.reached.includes(job.status)
+              return (
+                <li key={step.label} className="flex flex-col items-center gap-1.5 text-center">
+                  <span className={cn("h-1.5 w-full rounded-full", done ? "bg-emerald-500" : "bg-muted")} />
+                  <span className={cn("text-xs", done ? "font-medium" : "text-muted-foreground")}>{step.label}</span>
+                </li>
+              )
+            })}
+          </ol>
+        )}
+
+        {job.status === "failed" && job.error && (
+          <Alert variant="destructive">
+            <CircleAlertIcon />
+            <AlertTitle>প্রিন্টারের বার্তা</AlertTitle>
+            <AlertDescription>{job.error}</AlertDescription>
+          </Alert>
+        )}
+
+        <Separator />
+
+        <dl className="grid grid-cols-2 gap-y-2 text-sm">
+          <dt className="text-muted-foreground">ফাইল</dt>
+          <dd className="truncate text-right">{job.fileName}</dd>
+          <dt className="text-muted-foreground">পৃষ্ঠা × কপি</dt>
+          <dd className="text-right">
+            {formatNumber(job.pageCount)} × {formatNumber(job.copies)}
+          </dd>
+          <dt className="text-muted-foreground">ধরন</dt>
+          <dd className="text-right">{COLOR_MODE_LABELS[job.colorMode as ColorMode]}</dd>
+          <dt className="text-muted-foreground">মূল্য</dt>
+          <dd className="text-right font-medium">{formatTaka(job.amount)}</dd>
+          {job.paymentMethod && (
+            <>
+              <dt className="text-muted-foreground">পেমেন্ট</dt>
+              <dd className="text-right">
+                {PAYMENT_METHOD_LABELS[job.paymentMethod as PaymentMethod]}
+                {job.trxId && <span className="block text-xs text-muted-foreground">TrxID: {job.trxId}</span>}
+              </dd>
+            </>
+          )}
+        </dl>
+      </CardContent>
+
+      <CardFooter className="flex-col gap-2">
+        {job.status === "pending_payment" && (
+          <>
+            {job.shop.payments.bkash && (
+              <BkashButton
+                label="দিয়ে আবার পেমেন্ট করুন"
+                pending={paying === "bkash"}
+                disabled={!!paying}
+                onClick={() => retry("bkash")}
+              />
+            )}
+            {job.shop.payments.cash && (
+              <Button size="lg" variant="outline" className="h-12 w-full text-base" disabled={!!paying} onClick={() => retry("cash")}>
+                {paying === "cash" ? <Spinner /> : <BanknoteIcon />} কাউন্টারে ক্যাশ দেব
+              </Button>
+            )}
+          </>
+        )}
+        {FINAL.includes(job.status) && (
+          <Button variant="outline" className="w-full" render={<Link href={`/s/${job.shop.slug}`} />} nativeButton={false}>
+            আরেকটি ফাইল প্রিন্ট করুন
+          </Button>
+        )}
+        {!FINAL.includes(job.status) && (
+          <p className="text-center text-xs text-muted-foreground">এই পেজটি খোলা রাখুন — অবস্থা স্বয়ংক্রিয়ভাবে আপডেট হবে।</p>
+        )}
+      </CardFooter>
+    </Card>
+  )
+}
+
+function StatusIcon({ status }: { status: JobStatus }) {
+  const base = "flex size-12 items-center justify-center rounded-full"
+  switch (status) {
+    case "completed":
+      return (
+        <span className={cn(base, "bg-emerald-500/15 text-emerald-600")}>
+          <CheckIcon className="size-6" />
+        </span>
+      )
+    case "failed":
+    case "cancelled":
+    case "pending_payment":
+      return (
+        <span className={cn(base, "bg-destructive/10 text-destructive")}>
+          <XCircleIcon className="size-6" />
+        </span>
+      )
+    case "awaiting_approval":
+      return (
+        <span className={cn(base, "bg-amber-500/15 text-amber-600")}>
+          <BanknoteIcon className="size-6" />
+        </span>
+      )
+    case "printing":
+      return (
+        <span className={cn(base, "animate-pulse bg-violet-500/15 text-violet-600")}>
+          <PrinterIcon className="size-6" />
+        </span>
+      )
+    default:
+      return (
+        <span className={cn(base, "bg-blue-500/15 text-blue-600")}>
+          <Spinner className="size-6" />
+        </span>
+      )
+  }
+}

@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# dev agent credentials
+scripts/.agent-token
 
 # vercel
 .vercel
