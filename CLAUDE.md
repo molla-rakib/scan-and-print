@@ -17,7 +17,7 @@ Three roles:
 ## Commands
 
 ```bash
-docker compose up -d          # MongoDB (single-node replica set rs0) + MinIO; minio-init creates the bucket + 1-day expiry rule
+docker compose up -d          # MongoDB (single-node replica set rs0); PDFs live in it via GridFS
 npm run dev                   # Next.js dev server (http://localhost:3000)
 npm run build                 # production build — also catches Cache Components violations
 npm run lint                  # eslint
@@ -42,9 +42,7 @@ This is Next 16.4 with `cacheComponents: true` and `partialPrefetching: true`. A
 ## Architecture
 
 ```
-Customer browser ──presigned POST──► MinIO (S3)
-       │                               ▲ presigned GET
-       ▼                               │
+Customer browser ──upload PDF──►
 Next.js (pages + route handlers + server actions) ◄──HTTPS polling── Print agent on shop PC ──► Windows printers
        │
     MongoDB
@@ -56,15 +54,11 @@ Next.js (pages + route handlers + server actions) ◄──HTTPS polling── P
   - Shop's `pricing`, `bkash` and `cash` fields are required subdocuments with defaults, so they're typed as non-optional.
   - Abandoned draft jobs are removed by a TTL index on `draftExpiresAt`.
 - **`lib/env.ts`** wraps env vars in getters, so missing vars fail at use time, not at build time.
-- **`lib/storage.ts`** uses two MinIO clients:
-  - `internal` (`S3_ENDPOINT`) for server-side reads.
-  - `public` (`S3_PUBLIC_ENDPOINT`) for signing URLs that browsers and agents use.
-  - The region is fixed so presigning needs no network call.
-  - Uploads use a POST policy that enforces PDF type and a max size.
+- **`lib/storage.ts`** stores PDFs in MongoDB GridFS (bucket `printFiles`) only until printed. `sweepOrphanFiles()` (run from agent claim, hourly) deletes day-old files no unprinted job needs.
 
 ### Job lifecycle (`lib/jobs.ts`)
 
-1. **Draft.** The browser uploads straight to MinIO. `POST /api/public/jobs` then validates the PDF, counts pages with pdf-lib, and creates a `draft` job.
+1. **Draft.** The browser posts the PDF (multipart) to `POST /api/public/jobs`, which validates the PDF, counts pages with pdf-lib, and creates a `draft` job.
 2. **Checkout.** `POST /api/public/jobs/[publicId]/checkout` moves the job to one of:
    - `pending_payment` (bKash), which then goes to `queued` via `/api/bkash/callback`;
    - `awaiting_approval` (cash), which goes to `queued` when the owner approves in the dashboard.
@@ -78,7 +72,7 @@ Agents authenticate with a bearer token; only its SHA-256 hash is stored.
 
 - `pair` exchanges a one-time code (created by `createPairingCode` in `app/dashboard/actions.ts`) for a token.
 - `heartbeat` upserts the agent's printers. New devices default to `enabled: false`, and enabled devices count against `shop.deviceLimit`.
-- `jobs/claim` returns the next job with a presigned download URL.
+- `jobs/claim` returns the next job; the agent downloads it from `jobs/[id]/file` with its bearer token.
 - `jobs/[id]` reports the result.
 
 The real Windows agent (planned in Go) is not built yet. `scripts/dev-agent.mjs` speaks the same protocol for testing.
@@ -111,4 +105,3 @@ The real Windows agent (planned in Go) is not built yet. `scripts/dev-agent.mjs`
 Copy `.env.example` to `.env`.
 
 - **Google OAuth.** The redirect URI is `<APP_URL>/api/auth/google/callback` and the JavaScript origin is `<APP_URL>`.
-- **MinIO image.** Official `minio/minio` and `minio/mc` images are no longer published, so `docker-compose.yml` uses the community build `pgsty/minio`.

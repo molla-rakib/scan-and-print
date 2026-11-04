@@ -29,17 +29,23 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   return data as T
 }
 
-/** Uploads straight to storage with a signed form, reporting progress. */
-function uploadToStorage(url: string, fields: Record<string, string>, file: File, onProgress: (percent: number) => void) {
-  return new Promise<void>((resolve, reject) => {
+/** Uploads the PDF to the server, reporting progress. Resolves with the created draft job. */
+function uploadPdf(slug: string, file: File, onProgress: (percent: number) => void, onSent: () => void) {
+  return new Promise<{ publicId: string; pageCount: number }>((resolve, reject) => {
     const form = new FormData()
-    for (const [key, value] of Object.entries(fields)) form.append(key, value)
+    form.append("slug", slug)
     form.append("file", file)
 
     const xhr = new XMLHttpRequest()
-    xhr.open("POST", url)
+    xhr.open("POST", "/api/public/jobs")
+    xhr.responseType = "json"
     xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(Math.round((e.loaded / e.total) * 100))
-    xhr.onload = () => (xhr.status < 300 ? resolve() : reject(new Error("ফাইল আপলোড ব্যর্থ হয়েছে। আবার চেষ্টা করুন।")))
+    xhr.upload.onload = onSent
+    xhr.onload = () => {
+      const data = xhr.response ?? {}
+      if (xhr.status < 300) resolve(data)
+      else reject(new Error(data.error || "ফাইল আপলোড ব্যর্থ হয়েছে। আবার চেষ্টা করুন।"))
+    }
     xhr.onerror = () => reject(new Error("ইন্টারনেট সংযোগে সমস্যা। আবার চেষ্টা করুন।"))
     xhr.send(form)
   })
@@ -67,18 +73,7 @@ export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUplo
     try {
       setStage("uploading")
       setProgress(0)
-      const presigned = await postJson<{ key: string; url: string; fields: Record<string, string> }>("/api/public/upload", {
-        slug: shop.slug,
-        size: file.size,
-      })
-      await uploadToStorage(presigned.url, presigned.fields, file, setProgress)
-
-      setStage("analyzing")
-      const job = await postJson<{ publicId: string; pageCount: number }>("/api/public/jobs", {
-        slug: shop.slug,
-        key: presigned.key,
-        fileName: file.name,
-      })
+      const job = await uploadPdf(shop.slug, file, setProgress, () => setStage("analyzing"))
       setUploaded({ ...job, fileName: file.name })
     } catch (error) {
       toast.error((error as Error).message)

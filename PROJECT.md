@@ -34,7 +34,7 @@ Customer payments go **directly to the shop's own bKash merchant account**, neve
 ## 2. How the whole system works
 
 ```
-Customer phone ──upload──► MinIO (file storage)
+Customer phone ──upload──► Next.js ──► MongoDB GridFS (temporary file storage)
       │                        ▲ download
       ▼                        │
 Website + API (Next.js) ◄── polls ── Print Agent (Windows app on shop PC) ──► Printers / copiers
@@ -66,7 +66,7 @@ that Windows can print to will work.
 | **Cash mode** with mandatory owner approval | Shops without PGW access can still operate, and nobody can print for free from home. The owner taps "approve" after taking the money. |
 | **Google login only** (no email OTP) | Simplest for owners, and no email infrastructure is needed. |
 | Customers do **not** log in | Lowest friction at the counter. A random job link + token number identifies the order. |
-| **MongoDB** (replica set) + **MinIO** | Owner's choice. The replica set enables transactions. MinIO is self-hosted S3. Official MinIO images are discontinued, so we use `pgsty/minio`. |
+| **MongoDB** (replica set), files in **GridFS** | The replica set enables transactions. PDFs are only kept until printed, so GridFS replaces MinIO (one less service; MinIO images are discontinued). |
 | Delete files right after printing (+ 1-day storage expiry) | Customers print NIDs and certificates, so privacy matters. |
 | **Polling** for live updates (MVP) | Simple and reliable. WebSocket can replace it later if needed. |
 | UI fully in **Bangla** | Target users. Anek Bangla font, Poppins for English, Bangla digits, "ক্যাশ" not "নগদ" (competitor brand). |
@@ -77,7 +77,7 @@ that Windows can print to will work.
 
 ### ✅ Done: Phase 1, web platform MVP (2026-11-03 → 11-04)
 
-- [x] Docker Compose: MongoDB replica set + MinIO (bucket and 1-day expiry created automatically)
+- [x] Docker Compose: MongoDB replica set only (PDFs in GridFS, swept after 1 day)
 - [x] Google OAuth login (PKCE), 30-day session, session-aware landing page and `/login` redirect
 - [x] Landing page: hero, how it works, features, requirements, pricing, FAQ, mobile menu
 - [x] Shop onboarding (name, link/slug, address, phone)
@@ -112,8 +112,8 @@ Prerequisite: install Go on the dev machine (https://go.dev/dl/).
 
 ### 📋 Phase 3: Production launch
 
-- [ ] Choose hosting (VPS) + domain; production Docker Compose (Next.js, MongoDB with auth, MinIO behind HTTPS)
-- [ ] Set production `APP_URL`, Google OAuth redirect/origin, `S3_PUBLIC_ENDPOINT`
+- [ ] Choose hosting (VPS) + domain; production Docker Compose (Next.js, MongoDB with auth)
+- [ ] Set production `APP_URL`, Google OAuth redirect/origin
 - [ ] Switch to bKash live credentials per shop (after each shop's PGW approval)
 - [ ] Backups for MongoDB
 - [ ] Pilot with 1–3 real shops; test with their actual printers/copiers
@@ -146,4 +146,4 @@ Prerequisite: install Go on the dev machine (https://go.dev/dl/).
 | Date | Change |
 |---|---|
 | 2026-11-03 | Project idea discussed. Architecture, stack and key decisions agreed. Docker infra + full web MVP built. |
-| 2026-11-04 | Switched email OTP → Google login. Full Bangla UI (Anek Bangla). Royal blue theme, more spacing, colorful dashboard, mobile fixes. "ক্যাশ" wording, bKash logo. Session-aware landing/login. Decided to build our own print agent in Go. |
+| 2026-11-04 | Switched email OTP → Google login. Full Bangla UI (Anek Bangla). Royal blue theme, more spacing, colorful dashboard, mobile fixes. "ক্যাশ" wording, bKash logo. Session-aware landing/login. Decided to build our own print agent in Go. Exact npm versions (`.npmrc` save-exact). Replaced MinIO with MongoDB GridFS; docker-compose is MongoDB only. |

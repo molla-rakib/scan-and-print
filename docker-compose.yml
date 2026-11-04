@@ -1,67 +1,20 @@
-# Local infrastructure for development: MongoDB (single-node replica set) + MinIO.
+# Local MongoDB (single-node replica set, needed for transactions). PDFs are stored in it via GridFS.
 # Start with: docker compose up -d
 name: scan-and-print
 
 services:
   mongo:
-    image: mongo:8
-    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
-    ports:
-      - "127.0.0.1:27017:27017"
-    volumes:
-      - mongo-data:/data/db
-    # Initiates the replica set on first boot (needed for transactions), then reports healthy.
+    # Pinned so everyone runs the same version. mongo:8 (8.0) crashes on Linux kernels 6.19–7.0.13 (SERVER-121912); 8.2 works.
+    image: mongo:8.2
+    command: --replSet rs0 --bind_ip_all
+    ports: ["127.0.0.1:27017:27017"]
+    volumes: [mongo-data:/data/db]
+    # Initiates the replica set on first boot.
     healthcheck:
-      test:
-        - CMD
-        - mongosh
-        - --quiet
-        - --eval
-        - "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] }).ok }"
+      test: mongosh --quiet --eval "try { rs.status().ok } catch { rs.initiate({ _id:'rs0', members:[{ _id:0, host:'localhost:27017' }] }).ok }"
       interval: 5s
-      timeout: 10s
-      retries: 20
       start_period: 10s
     restart: unless-stopped
 
-  minio:
-    # Official minio/minio images are no longer published; pgsty/minio is a maintained community build.
-    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
-    command: ["server", "/data", "--console-address", ":9001"]
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
-    ports:
-      - "127.0.0.1:9000:9000" # S3 API
-      - "127.0.0.1:9001:9001" # Web console
-    volumes:
-      - minio-data:/data
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-    restart: unless-stopped
-
-  # One-shot job: creates the bucket and auto-deletes uploaded files after 1 day.
-  minio-init:
-    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
-    depends_on:
-      minio:
-        condition: service_healthy
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
-      S3_BUCKET: ${S3_BUCKET:-print-jobs}
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
-        mc mb --ignore-existing "local/$$S3_BUCKET" &&
-        (mc ilm rule ls "local/$$S3_BUCKET" > /dev/null 2>&1 || mc ilm rule add --expire-days 1 "local/$$S3_BUCKET") &&
-        echo "MinIO bucket ready"
-    restart: "no"
-
 volumes:
   mongo-data:
-  minio-data:

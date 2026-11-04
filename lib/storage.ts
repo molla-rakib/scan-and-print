@@ -1,69 +1,62 @@
 import "server-only"
-import { Client } from "minio"
-import { env } from "@/lib/env"
+import mongoose from "mongoose"
+import { Readable } from "node:stream"
+import { connectDb } from "@/lib/db"
+import { PrintJob } from "@/lib/models"
 
-// Fixed region so presigning never needs a network round-trip to discover it.
-const REGION = "us-east-1"
+// PDFs live in MongoDB GridFS only until they're printed (see discardJobFile).
+const BUCKET = "printFiles"
+const ORPHAN_AGE_MS = 24 * 60 * 60 * 1000
 
-function clientFor(endpoint: string) {
-  const url = new URL(endpoint)
-  return new Client({
-    endPoint: url.hostname,
-    port: url.port ? Number(url.port) : undefined,
-    useSSL: url.protocol === "https:",
-    accessKey: env.s3.accessKey,
-    secretKey: env.s3.secretKey,
-    region: REGION,
+async function bucket() {
+  const { connection } = await connectDb()
+  return new mongoose.mongo.GridFSBucket(connection.db!, { bucketName: BUCKET })
+}
+
+function toId(key: string) {
+  return new mongoose.Types.ObjectId(key)
+}
+
+/** Stores a PDF and returns its key. */
+export async function saveFile(data: Buffer, fileName: string, shopId: string): Promise<string> {
+  const upload = (await bucket()).openUploadStream(fileName, { metadata: { shopId, contentType: "application/pdf" } })
+  await new Promise<void>((resolve, reject) => {
+    Readable.from([data]).pipe(upload).on("finish", resolve).on("error", reject)
   })
+  return upload.id.toString()
 }
 
-const globalCache = globalThis as unknown as { __storage?: { internal: Client; public: Client } }
-
-/**
- * `internal` talks to MinIO from the server; `public` signs URLs that browsers
- * and shop agents use, so it must use the publicly reachable endpoint.
- */
-function clients() {
-  globalCache.__storage ??= { internal: clientFor(env.s3.endpoint), public: clientFor(env.s3.publicEndpoint) }
-  return globalCache.__storage
-}
-
-export function uploadKey(shopId: string) {
-  return `uploads/${shopId}/${crypto.randomUUID()}.pdf`
-}
-
-/** Browser upload form limited to one PDF of at most `maxBytes`. */
-export async function presignUpload(key: string, maxBytes: number) {
-  const { public: client } = clients()
-  const policy = client.newPostPolicy()
-  policy.setBucket(env.s3.bucket)
-  policy.setKey(key)
-  policy.setContentType("application/pdf")
-  policy.setContentLengthRange(1, maxBytes)
-  policy.setExpires(new Date(Date.now() + 15 * 60 * 1000))
-  return client.presignedPostPolicy(policy)
-}
-
-/** Short-lived download link for the shop agent. */
-export async function presignDownload(key: string, expirySeconds = 10 * 60) {
-  return clients().public.presignedGetObject(env.s3.bucket, key, expirySeconds)
-}
-
-export async function statFile(key: string) {
-  try {
-    return await clients().internal.statObject(env.s3.bucket, key)
-  } catch {
-    return null
-  }
-}
-
-export async function readFile(key: string): Promise<Buffer> {
-  const stream = await clients().internal.getObject(env.s3.bucket, key)
-  const chunks: Buffer[] = []
-  for await (const chunk of stream) chunks.push(chunk as Buffer)
-  return Buffer.concat(chunks)
+/** Web stream of the file, for sending it to the agent. */
+export async function openFile(key: string): Promise<ReadableStream<Uint8Array>> {
+  const stream = (await bucket()).openDownloadStream(toId(key))
+  return Readable.toWeb(stream) as ReadableStream<Uint8Array>
 }
 
 export async function deleteFile(key: string) {
-  await clients().internal.removeObject(env.s3.bucket, key)
+  try {
+    await (await bucket()).delete(toId(key))
+  } catch (error) {
+    if (!(error instanceof mongoose.mongo.MongoRuntimeError && /not found/i.test(error.message))) throw error
+  }
+}
+
+let lastSweep = 0
+
+/**
+ * Deletes files older than a day that no unprinted job still needs (e.g. drafts removed by the TTL index).
+ * Runs at most once an hour; cheap because only a few files exist at any time.
+ */
+export async function sweepOrphanFiles() {
+  const now = Date.now()
+  if (now - lastSweep < 60 * 60 * 1000) return
+  lastSweep = now
+
+  const b = await bucket()
+  const old = await b.find({ uploadDate: { $lt: new Date(now - ORPHAN_AGE_MS) } }, { projection: { _id: 1 } }).toArray()
+  if (old.length === 0) return
+  const keys = old.map((file) => file._id.toString())
+  const inUse = new Set(
+    (await PrintJob.find({ fileKey: { $in: keys }, fileDeleted: false }, { fileKey: 1 }).lean()).map((job) => job.fileKey)
+  )
+  for (const key of keys) if (!inUse.has(key)) await deleteFile(key)
 }

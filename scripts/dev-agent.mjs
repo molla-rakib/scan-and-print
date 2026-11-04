@@ -58,7 +58,7 @@ async function heartbeat(token) {
 
 async function processJob(token, job) {
   console.log(`\n▶ Job #${job.token}: ${job.fileName} → "${job.printer}" (${job.colorMode}, ${job.copies} copies, ${job.pageCount} pages)`)
-  const file = await fetch(job.fileUrl)
+  const file = await fetch(job.fileUrl, { headers: { Authorization: `Bearer ${token}` } })
   if (!file.ok) {
     await api(`/api/agent/jobs/${job.id}`, token, { status: "failed", error: `Download failed (${file.status})` })
     return console.log("  ✗ download failed")

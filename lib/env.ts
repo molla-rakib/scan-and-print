@@ -31,15 +31,6 @@ export const env = {
   get mongodbUri() {
     return required("MONGODB_URI")
   },
-  get s3() {
-    return {
-      endpoint: required("S3_ENDPOINT"),
-      publicEndpoint: process.env.S3_PUBLIC_ENDPOINT || required("S3_ENDPOINT"),
-      accessKey: required("S3_ACCESS_KEY"),
-      secretKey: required("S3_SECRET_KEY"),
-      bucket: process.env.S3_BUCKET || "print-jobs",
-    }
-  },
   get google() {
     return {
       clientId: required("GOOGLE_CLIENT_ID"),
