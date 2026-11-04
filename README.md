@@ -14,13 +14,12 @@ printer automatically.
 
 ```bash
 cp .env.example .env        # then fill in the secrets and Google OAuth credentials
-docker compose up -d        # MongoDB (replica set) + MinIO (bucket created automatically)
+docker compose up -d        # MongoDB (replica set)
 npm install
 npm run dev
 ```
 
 - App: http://localhost:3000
-- MinIO console: http://localhost:9001 (`MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`)
 
 **Google login.** Create an OAuth client (type *Web application*) in Google Cloud Console and add
 `<APP_URL>/api/auth/google/callback` as an authorized redirect URI.
@@ -39,16 +38,16 @@ npm run dev
 Customer phone ──► Next.js (web + API) ──► MongoDB
       │ upload (signed form)      ▲
       ▼                           │ poll / heartbeat (HTTPS)
-    MinIO ◄──── download ──── Print agent on shop PC ──► Windows printers
+    (download) ◄──────────── Print agent on shop PC ──► Windows printers
 ```
 
-- Files go straight from the browser to MinIO. The server counts pages with `pdf-lib` to price the job.
+- Files are uploaded to the server and kept in MongoDB GridFS until printed. The server counts pages with `pdf-lib` to price the job.
 - **bKash**: each shop uses its own Tokenized Checkout (PGW) credentials, stored AES-256-GCM encrypted.
   Money goes directly to the shop.
 - **Cash**: the job waits until the owner approves it in the dashboard, which plays an alert sound.
 - **Routing** (`lib/jobs.ts`): color jobs go to color devices. Black & white jobs prefer mono devices and the
   least busy one.
-- **Privacy**: files are deleted right after printing. MinIO also expires anything older than 1 day.
+- **Privacy**: files are deleted right after printing. Leftover files older than 1 day are swept automatically.
 
 ### Agent API
 

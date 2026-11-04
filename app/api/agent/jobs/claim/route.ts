@@ -2,7 +2,8 @@ import { NextResponse } from "next/server"
 import { authenticateAgent, jsonError } from "@/lib/api"
 import { rebalanceQueue } from "@/lib/jobs"
 import { Device, PrintJob } from "@/lib/models"
-import { presignDownload } from "@/lib/storage"
+import { env } from "@/lib/env"
+import { sweepOrphanFiles } from "@/lib/storage"
 
 /** Agents poll this every few seconds. Returns the next job for one of the agent's printers, if any. */
 export async function POST(request: Request) {
@@ -10,6 +11,7 @@ export async function POST(request: Request) {
   if (!agent) return jsonError("Unauthorized", 401)
 
   await rebalanceQueue(agent.shopId)
+  sweepOrphanFiles().catch((error) => console.error("File sweep failed", error))
 
   const job = await PrintJob.findOneAndUpdate(
     { agentId: agent._id, status: "queued", deviceId: { $ne: null } },
@@ -28,7 +30,8 @@ export async function POST(request: Request) {
     job: {
       id: job.id,
       token: job.token,
-      fileUrl: await presignDownload(job.fileKey),
+      // Download with the same bearer token.
+      fileUrl: `${env.appUrl}/api/agent/jobs/${job.id}/file`,
       fileName: job.fileName,
       pageCount: job.pageCount,
       printer: device.systemName,
