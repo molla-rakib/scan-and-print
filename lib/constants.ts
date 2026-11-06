@@ -66,3 +66,13 @@ export function formatDateTime(value: Date | string) {
 export function formatDate(value: Date | string) {
   return new Date(value).toLocaleDateString("bn-BD", { dateStyle: "medium", timeZone: "Asia/Dhaka" })
 }
+
+/**
+ * Normalises a Bangladeshi mobile number ("+880 1712-345678", "০১৭১২৩৪৫৬৭৮" …) to "01712345678".
+ * Returns null if it is not a valid mobile number.
+ */
+export function normalizeBdPhone(input: string): string | null {
+  const ascii = input.replace(/[০-৯]/g, (d) => String(d.charCodeAt(0) - 0x09e6))
+  const digits = ascii.replace(/[\s\-()]/g, "").replace(/^\+?88/, "")
+  return /^01[3-9]\d{8}$/.test(digits) ? digits : null
+}

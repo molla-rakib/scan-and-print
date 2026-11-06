@@ -35,7 +35,7 @@ import {
   type JobStatus,
 } from "@/lib/constants"
 import { env } from "@/lib/env"
-import { availableDevices, paymentOptions, shopIsOpen } from "@/lib/jobs"
+import { availableDevices, latestCashOrder, paymentOptions, shopIsOpen } from "@/lib/jobs"
 import { Agent, Device, PrintJob } from "@/lib/models"
 
 export const metadata: Metadata = { title: "সারসংক্ষেপ" }
@@ -65,12 +65,19 @@ async function Overview() {
   const { shop } = await requireShop()
   const today = startOfTodayInDhaka()
 
-  const [todayStats, pendingApprovals, online, enabledCount, pairedPcs, recentJobs] = await Promise.all([
-    PrintJob.aggregate<{ count: number; revenue: number }>([
+  const [todayStats, latestCash, online, enabledCount, pairedPcs, recentJobs] = await Promise.all([
+    PrintJob.aggregate<{ count: number; revenue: number; cash: number }>([
       { $match: { shopId: shop._id, queuedAt: { $gte: today }, status: { $nin: ["cancelled", "draft"] } } },
-      { $group: { _id: null, count: { $sum: 1 }, revenue: { $sum: "$amount" } } },
+      {
+        $group: {
+          _id: null,
+          count: { $sum: 1 },
+          revenue: { $sum: "$amount" },
+          cash: { $sum: { $cond: [{ $eq: ["$paymentMethod", "cash"] }, "$amount", 0] } },
+        },
+      },
     ]),
-    PrintJob.countDocuments({ shopId: shop._id, status: "awaiting_approval" }),
+    latestCashOrder(shop._id),
     availableDevices(shop._id),
     Device.countDocuments({ shopId: shop._id, enabled: true }),
     Agent.countDocuments({ shopId: shop._id, tokenHash: { $exists: true } }),
@@ -89,7 +96,7 @@ async function Overview() {
 
   return (
     <>
-      <LiveRefresh pendingApprovals={pendingApprovals} />
+      <LiveRefresh latestCash={latestCash} />
 
       {!shopIsOpen(shop) && (
         <Alert variant="destructive">
@@ -114,8 +121,8 @@ async function Overview() {
           href="/dashboard/devices"
         />
         <StatCard
-          label="অনুমোদনের অপেক্ষায়"
-          value={formatNumber(pendingApprovals)}
+          label="আজ ক্যাশে নিতে হবে"
+          value={formatTaka(todayStats[0]?.cash ?? 0)}
           icon={BanknoteIcon}
           tone="amber"
           href="/dashboard/jobs"

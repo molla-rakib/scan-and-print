@@ -1,7 +1,7 @@
 # Scan & Print agent (Rust)
 
 The Windows program that runs on the shop's PC. It reports the installed printers to the server, picks up
-paid jobs, prints them, pops up cash orders for approval, and updates itself. It speaks the same API as
+paid jobs, prints them, and updates itself. It speaks the same API as
 `scripts/dev-agent.mjs` (`app/api/agent/*`). Requires Windows 10 or newer with WebView2 (built into
 Windows 11 and updated Windows 10).
 
@@ -17,7 +17,8 @@ Windows 11 and updated Windows 10).
 4. Enable the printers in the dashboard.
 
 From then on it lives in the tray: a blue icon with a green (online), red (offline / not paired) or
-orange (cash orders waiting / print software missing) dot. Cash orders pop up on top with a chime.
+orange (print software missing) dot. Clicking it, or the desktop shortcut, opens a status window: online state,
+shop, printers, last job.
 Uninstall from Settings → Apps → "Scan & Print Agent".
 
 ## Releasing a new version
@@ -51,7 +52,7 @@ scan-print-agent printers            # what Windows has installed, with color/du
 scan-print-agent status | unpair
 scan-print-agent autostart on|off
 scan-print-agent install | uninstall
-scan-print-agent ui-preview pair|pair-error|pair-done|approvals|approvals-empty   # debug builds: open a window with sample data
+scan-print-agent ui-preview pair|pair-error|pair-done|status|status-setup|status-offline   # debug builds: open a window with sample data
 ```
 
 The windows are HTML in `ui/` (`style.css` is shared, `logo.svg` is inserted at `<!--LOGO-->`); use
@@ -66,7 +67,7 @@ server used for pairing (also for the installed app, if set when the installer r
 | File | What it does |
 |---|---|
 | `src/main.rs` | No arguments: self-install (release, when not yet installed) or the tray app. Otherwise a console command |
-| `src/gui.rs` | Tray app (tao event loop + tray-icon): status icon and menu, pairing window and cash-order popup (wry web views showing `ui/*.html`), SumatraPDF download, update checks |
+| `src/gui.rs` | Tray app (tao event loop + tray-icon): status icon and menu, pairing and status windows (wry web views showing `ui/*.html`), SumatraPDF download, update checks |
 | `src/runner.rs` | Printing thread: heartbeat every 30 s, poll for a job every 3 s, back off 5–60 s while offline, stop when the PC is removed in the dashboard |
 | `src/api.rs` | HTTP client (`ureq`). Downloads job PDFs from our own server URL so the token never goes elsewhere |
 | `src/printers.rs` | `EnumPrintersW` + `DeviceCapabilitiesW`: name, color, duplex, state (offline, paper out, …) |

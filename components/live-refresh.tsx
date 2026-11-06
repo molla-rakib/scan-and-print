@@ -3,14 +3,17 @@
 import { useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { formatTaka, formatToken } from "@/lib/constants"
+
+export type LatestCashOrder = { token: number; amount: number; name: string } | null
 
 /**
- * Re-renders the current page every few seconds while it is visible, and plays
- * a chime when a new cash order is waiting for approval.
+ * Re-renders the current page every few seconds while it is visible, and plays a chime when a new
+ * cash order comes in (it prints right away; the owner collects the money at the counter).
  */
-export function LiveRefresh({ pendingApprovals, intervalMs = 5000 }: { pendingApprovals?: number; intervalMs?: number }) {
+export function LiveRefresh({ latestCash, intervalMs = 5000 }: { latestCash?: LatestCashOrder; intervalMs?: number }) {
   const router = useRouter()
-  const previous = useRef(pendingApprovals)
+  const previous = useRef(latestCash?.token)
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -20,12 +23,16 @@ export function LiveRefresh({ pendingApprovals, intervalMs = 5000 }: { pendingAp
   }, [router, intervalMs])
 
   useEffect(() => {
-    if (pendingApprovals !== undefined && previous.current !== undefined && pendingApprovals > previous.current) {
-      toast.info("নতুন ক্যাশ অর্ডার আপনার অনুমোদনের অপেক্ষায়")
+    const token = latestCash?.token
+    if (latestCash && token !== previous.current) {
+      toast.info(`নতুন ক্যাশ অর্ডার ${formatToken(latestCash.token)}`, {
+        description: `${latestCash.name} — কাউন্টারে ${formatTaka(latestCash.amount)} নিতে হবে`,
+        duration: 15_000,
+      })
       chime()
     }
-    previous.current = pendingApprovals
-  }, [pendingApprovals])
+    previous.current = token
+  }, [latestCash])
 
   return null
 }

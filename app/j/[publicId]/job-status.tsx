@@ -5,6 +5,7 @@ import Link from "next/link"
 import { BanknoteIcon, CheckIcon, CircleAlertIcon, PrinterIcon, XCircleIcon } from "lucide-react"
 import { toast } from "sonner"
 import { BkashButton } from "@/components/bkash"
+import { CashCheckout, type CashCustomer } from "@/components/cash-checkout"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -26,7 +27,7 @@ import { cn } from "@/lib/utils"
 const FINAL: JobStatus[] = ["completed", "cancelled"]
 
 const steps = [
-  { label: "পেমেন্ট", reached: ["queued", "printing", "completed"] },
+  { label: "অর্ডার", reached: ["queued", "printing", "completed"] },
   { label: "লাইনে", reached: ["queued", "printing", "completed"] },
   { label: "প্রিন্ট হচ্ছে", reached: ["printing", "completed"] },
   { label: "সম্পন্ন", reached: ["completed"] },
@@ -78,12 +79,12 @@ export function JobStatusView({ initial, paymentResult }: { initial: PublicJobVi
     return () => clearInterval(id)
   }, [job.publicId, job.status])
 
-  async function retry(method: PaymentMethod) {
+  async function retry(method: PaymentMethod, customer?: CashCustomer) {
     setPaying(method)
     const response = await fetch(`/api/public/jobs/${job.publicId}/checkout`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ colorMode: job.colorMode, copies: job.copies, method }),
+      body: JSON.stringify({ colorMode: job.colorMode, copies: job.copies, method, customer }),
     })
     const data = await response.json().catch(() => ({}))
     if (!response.ok) {
@@ -95,6 +96,8 @@ export function JobStatusView({ initial, paymentResult }: { initial: PublicJobVi
 
   const { title, text } = headline(job)
   const showSteps = !["pending_payment", "awaiting_approval", "cancelled", "failed"].includes(job.status)
+  // Cash orders print without approval; remind the customer to pay at the counter.
+  const cashDue = job.paymentMethod === "cash" && ["queued", "printing", "completed", "failed"].includes(job.status)
 
   return (
     <Card>
@@ -122,6 +125,14 @@ export function JobStatusView({ initial, paymentResult }: { initial: PublicJobVi
               )
             })}
           </ol>
+        )}
+
+        {cashDue && (
+          <Alert className="border-amber-500/40 bg-amber-500/10">
+            <BanknoteIcon className="text-amber-600" />
+            <AlertTitle>কাউন্টারে {formatTaka(job.amount)} ক্যাশ দিন</AlertTitle>
+            <AlertDescription>দোকানদারকে টোকেন {formatToken(job.token)} দেখিয়ে টাকা দিন ও কাগজ নিন।</AlertDescription>
+          </Alert>
         )}
 
         {job.status === "failed" && job.error && (
@@ -169,9 +180,13 @@ export function JobStatusView({ initial, paymentResult }: { initial: PublicJobVi
               />
             )}
             {job.shop.payments.cash && (
-              <Button size="lg" variant="outline" className="h-12 w-full text-base" disabled={!!paying} onClick={() => retry("cash")}>
-                {paying === "cash" ? <Spinner /> : <BanknoteIcon />} কাউন্টারে ক্যাশ দেব
-              </Button>
+              <CashCheckout
+                amount={job.amount}
+                outline
+                pending={paying === "cash"}
+                disabled={!!paying}
+                onSubmit={(customer) => retry("cash", customer)}
+              />
             )}
           </>
         )}

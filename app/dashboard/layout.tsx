@@ -1,20 +1,14 @@
 import { Suspense } from "react"
-import { AdminNavItem, AppSidebar, PendingBadge, UserMenu } from "@/app/dashboard/app-sidebar"
+import { AdminNavItem, AppSidebar, UserMenu } from "@/app/dashboard/app-sidebar"
 import { Logo } from "@/components/logo"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getUserAndShop } from "@/lib/auth"
-import { PrintJob } from "@/lib/models"
 
 export default function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
   return (
     <SidebarProvider>
       <AppSidebar
-        jobsBadge={
-          <Suspense>
-            <SidebarPendingBadge />
-          </Suspense>
-        }
         extraItems={
           <Suspense>
             <SidebarAdminItem />
@@ -39,12 +33,6 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
 }
 
 // Sidebar slots must not redirect: an admin without a shop can still open the admin panel.
-async function SidebarPendingBadge() {
-  const { shop } = await getUserAndShop()
-  if (!shop) return null
-  return <PendingBadge count={await PrintJob.countDocuments({ shopId: shop._id, status: "awaiting_approval" })} />
-}
-
 async function SidebarAdminItem() {
   const { user } = await getUserAndShop()
   return user.isAdmin ? <AdminNavItem /> : null

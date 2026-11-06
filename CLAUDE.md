@@ -61,7 +61,7 @@ Next.js (pages + route handlers + server actions) ◄──HTTPS polling── P
 1. **Draft.** The browser posts the PDF (multipart) to `POST /api/public/jobs`, which validates the PDF, counts pages with pdf-lib, and creates a `draft` job.
 2. **Checkout.** `POST /api/public/jobs/[publicId]/checkout` moves the job to one of:
    - `pending_payment` (bKash), which then goes to `queued` via `/api/bkash/callback`;
-   - `awaiting_approval` (cash), which goes to `queued` when the owner approves in the dashboard.
+   - `queued` directly (cash). Cash requires the customer's name and mobile number (`customer`, checked with `normalizeBdPhone`); there is no approval step. `awaiting_approval` only exists on old jobs.
 3. **Queueing.** `queueJob()` transitions atomically and calls `pickDevice()`. Color jobs need a color device; B/W jobs prefer mono devices, with load-balancing across active jobs.
 4. **Re-routing.** `rebalanceQueue()` re-routes queued jobs whose device or agent went offline. An agent counts as online if seen within `AGENT_ONLINE_WINDOW_MS`.
 5. **Printing.** The agent claims the job (`printing`), then reports `completed` or `failed`. The PDF is deleted on completion; failed jobs keep the file so they can be reprinted.
@@ -75,7 +75,7 @@ Agents authenticate with a bearer token; only its SHA-256 hash is stored.
 - `jobs/claim` returns the next job; the agent downloads it from `jobs/[id]/file` with its bearer token.
 - `jobs/[id]` reports the result.
 
-The real Windows agent is a Rust tray app in `agent/` (see `agent/README.md`; tao + wry + tray-icon, popups are `agent/ui/*.html`). The release exe installs itself per user and runs as a tray app; debug builds (`cargo build`) run in place against `http://localhost:3000`, and `scan-print-agent pair <CODE>` / `run [--dry-run --include-virtual]` are console commands for testing. It prints through the SumatraPDF CLI (downloaded from `public/downloads/` on first start, hash pinned in `agent/src/update.rs`). Cash orders can also be approved from the shop PC via `app/api/agent/approvals/*`. `scripts/dev-agent.mjs` speaks the same protocol for testing.
+The real Windows agent is a Rust tray app in `agent/` (see `agent/README.md`; tao + wry + tray-icon, popups are `agent/ui/*.html`). The release exe installs itself per user and runs as a tray app; debug builds (`cargo build`) run in place against `http://localhost:3000`, and `scan-print-agent pair <CODE>` / `run [--dry-run --include-virtual]` are console commands for testing. It prints through the SumatraPDF CLI (downloaded from `public/downloads/` on first start, hash pinned in `agent/src/update.rs`). `scripts/dev-agent.mjs` speaks the same protocol for testing.
 
 **Releasing the agent:** bump `version` in `agent/Cargo.toml`, run `powershell -ExecutionPolicy Bypass -File agent/release.ps1` (builds for `https://scan-and-print.vercel.app` and writes `public/downloads/ScanAndPrintAgent.exe` + `agent.json`), then commit and deploy. Installed agents update themselves within ~6 hours.
 
@@ -89,7 +89,7 @@ The real Windows agent is a Rust tray app in `agent/` (see `agent/README.md`; ta
 
 - **bKash Tokenized Checkout** lives in `lib/bkash.ts`. Each shop uses its own merchant credentials (password and app secret are AES-256-GCM encrypted with `ENCRYPTION_KEY`), and tokens are cached in memory.
 - **The callback is idempotent.** It only acts on `pending_payment` jobs and falls back to a status query when execute fails.
-- **Cash** jobs always need owner approval. The dashboard polls via `components/live-refresh.tsx` and chimes when new cash jobs arrive.
+- **Cash** jobs print immediately; the customer gives name + phone (`components/cash-checkout.tsx`). The dashboard polls via `components/live-refresh.tsx` and chimes with the customer and amount when a new cash job arrives (`latestCashOrder` in `lib/jobs.ts`).
 - **Billing.** Shops pay `DEVICE_MONTHLY_FEE` per enabled device; new shops start with a `TRIAL_DAYS` trial. The admin extends `paidUntil` manually.
 
 ## UI conventions

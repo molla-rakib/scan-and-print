@@ -38,8 +38,6 @@ pub enum RunnerEvent {
     /// Connected. `printers` were reported, `enabled` of them are switched on in the dashboard.
     Online { printers: usize, enabled: usize },
     Offline,
-    /// Number of cash orders waiting for approval changed.
-    PendingApprovals(u32),
     /// A job finished (`ok`) or failed.
     JobFinished { token: u32, ok: bool },
 }
@@ -76,7 +74,6 @@ pub fn run(cfg: &Config, opts: &Options, stop: Arc<AtomicBool>, notify: impl Fn(
     }
 
     let mut enabled: Option<BTreeSet<String>> = None;
-    let mut pending_approvals: Option<u32> = None;
     let mut last_heartbeat: Option<Instant> = None;
     let mut backoff = MIN_BACKOFF;
     let mut offline_since: Option<Instant> = None;
@@ -92,10 +89,6 @@ pub fn run(cfg: &Config, opts: &Options, stop: Arc<AtomicBool>, notify: impl Fn(
                 last_heartbeat = Some(Instant::now());
             }
             let claim = client.claim()?;
-            if pending_approvals != Some(claim.pending_approvals) {
-                pending_approvals = Some(claim.pending_approvals);
-                notify(RunnerEvent::PendingApprovals(claim.pending_approvals));
-            }
             match claim.job {
                 Some(job) => {
                     let ok = process_job(&client, &job, &work_dir, opts.dry_run);

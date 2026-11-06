@@ -132,6 +132,11 @@ const printJobSchema = new Schema(
     pricePerPage: { type: Number, default: 0 },
     amount: { type: Number, default: 0 },
     paymentMethod: { type: String, enum: ["bkash", "cash"] },
+    // Required for cash orders, which print without approval: who to ask for the money.
+    customer: {
+      name: { type: String, trim: true },
+      phone: { type: String, trim: true },
+    },
     status: { type: String, enum: JOB_STATUSES, default: "draft" },
     deviceId: { type: ObjectId, ref: "Device" },
     agentId: { type: ObjectId, ref: "Agent" },

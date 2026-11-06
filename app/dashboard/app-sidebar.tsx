@@ -31,7 +31,6 @@ import {
   SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
@@ -60,11 +59,9 @@ function useCloseOnMobile() {
  * SidebarProvider (which decides desktop vs mobile). User-specific parts stream into the slots.
  */
 export function AppSidebar({
-  jobsBadge,
   extraItems,
   footer,
 }: {
-  jobsBadge?: React.ReactNode
   extraItems?: React.ReactNode
   footer?: React.ReactNode
 }) {
@@ -90,7 +87,6 @@ export function AppSidebar({
                     <item.icon className={item.color} />
                     <span>{item.label}</span>
                   </SidebarMenuButton>
-                  {item.href === "/dashboard/jobs" && jobsBadge}
                 </SidebarMenuItem>
               ))}
               {extraItems}
@@ -104,15 +100,6 @@ export function AppSidebar({
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
-  )
-}
-
-export function PendingBadge({ count }: { count: number }) {
-  if (count <= 0) return null
-  return (
-    <SidebarMenuBadge className="bg-amber-500 text-white peer-data-active/menu-button:text-white">
-      {count.toLocaleString("bn-BD")}
-    </SidebarMenuBadge>
   )
 }
 

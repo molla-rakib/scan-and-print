@@ -141,15 +141,40 @@ export async function updateBkash(input: z.input<typeof bkashSchema>): Promise<A
 
 /* ------------------------------ PCs & devices ------------------------------ */
 
-export async function createPairingCode(): Promise<ActionResult<{ code: string; expiresAt: string }>> {
+export async function createPairingCode(): Promise<ActionResult<{ code: string; agentId: string; expiresAt: string }>> {
   const { shop } = await requireShop()
   // Drop unused codes so only the latest one works.
   await Agent.deleteMany({ shopId: shop._id, tokenHash: { $exists: false } })
 
   const code = randomCode(8)
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000)
-  await Agent.create({ shopId: shop._id, pairingCode: code, pairingExpiresAt: expiresAt })
-  return { ok: true, code, expiresAt: expiresAt.toISOString() }
+  const agent = await Agent.create({ shopId: shop._id, pairingCode: code, pairingExpiresAt: expiresAt })
+  return { ok: true, code, agentId: agent.id, expiresAt: expiresAt.toISOString() }
+}
+
+export type PairingStatus = {
+  /** waiting: code not used yet · paired: the PC connected · expired: code expired or replaced. */
+  state: "waiting" | "paired" | "expired"
+  machineName: string
+  /** The PC has sent its printer list (first heartbeat after pairing). */
+  checkedIn: boolean
+  printers: number
+}
+
+/** Polled by the pairing dialog so it can show the PC connecting live. Read-only. */
+export async function getPairingStatus(agentId: string): Promise<ActionResult<PairingStatus>> {
+  const { shop } = await requireShop()
+  if (!isValidObjectId(agentId)) return fail("কম্পিউটারটি সঠিক নয়।")
+
+  const agent = await Agent.findOne({ _id: agentId, shopId: shop._id })
+  if (!agent) return { ok: true, state: "expired", machineName: "", checkedIn: false, printers: 0 }
+  if (!agent.tokenHash) {
+    const expired = !agent.pairingExpiresAt || agent.pairingExpiresAt.getTime() < Date.now()
+    return { ok: true, state: expired ? "expired" : "waiting", machineName: "", checkedIn: false, printers: 0 }
+  }
+  const printers = await Device.countDocuments({ agentId: agent._id })
+  const checkedIn = printers > 0 || Boolean(agent.lastSeenAt && agent.pairedAt && agent.lastSeenAt > agent.pairedAt)
+  return { ok: true, state: "paired", machineName: agent.machineName, checkedIn, printers }
 }
 
 export async function removeAgent(agentId: string): Promise<ActionResult> {

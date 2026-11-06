@@ -8,11 +8,10 @@ use std::{
 };
 
 use windows::Win32::Foundation::{CloseHandle, ERROR_ALREADY_EXISTS, ERROR_SUCCESS, GetLastError, HANDLE, WAIT_OBJECT_0};
-use windows::Win32::System::Diagnostics::Debug::MessageBeep;
 use windows::Win32::System::Registry::{HKEY_CURRENT_USER, REG_SZ, RRF_RT_REG_SZ, RegDeleteKeyValueW, RegGetValueW, RegSetKeyValueW};
 use windows::Win32::System::Threading::{CreateEventW, CreateMutexW, EVENT_MODIFY_STATE, INFINITE, OpenEventW, SetEvent, WaitForSingleObject};
 use windows::Win32::UI::Shell::ShellExecuteW;
-use windows::Win32::UI::WindowsAndMessaging::{MB_ICONASTERISK, MB_ICONERROR, MB_ICONINFORMATION, MB_OK, MessageBoxW, SW_SHOWNORMAL};
+use windows::Win32::UI::WindowsAndMessaging::{MB_ICONERROR, MB_ICONINFORMATION, MB_OK, MessageBoxW, SW_SHOWNORMAL};
 use windows::core::{HSTRING, PCWSTR, w};
 
 const RUN_KEY: PCWSTR = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Run");
@@ -145,12 +144,6 @@ pub fn open(target: &str) {
     }
 }
 
-/// The Windows "information" sound, for a new cash order.
-pub fn chime() {
-    unsafe {
-        let _ = MessageBeep(MB_ICONASTERISK);
-    }
-}
 
 /// A plain Windows message box, for the installer and errors before the tray exists.
 pub fn message(text: &str, error: bool) {

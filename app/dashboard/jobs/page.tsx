@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
-import { BanknoteIcon, InboxIcon, ListOrderedIcon } from "lucide-react"
+import { InboxIcon, ListOrderedIcon } from "lucide-react"
 import { IconTile } from "@/components/icon-tile"
 import { JobStatusBadge } from "@/components/job-status-badge"
 import { LiveRefresh } from "@/components/live-refresh"
@@ -21,8 +21,9 @@ import {
   type JobStatus,
   type PaymentMethod,
 } from "@/lib/constants"
+import { latestCashOrder } from "@/lib/jobs"
 import { Device, PrintJob } from "@/lib/models"
-import { ApprovalButtons, JobActions } from "./job-actions"
+import { JobActions } from "./job-actions"
 
 export const metadata: Metadata = { title: "প্রিন্ট অর্ডার" }
 
@@ -44,9 +45,9 @@ export default function JobsPage() {
 
 async function Jobs() {
   const { shop } = await requireShop()
-  const [approvals, jobs, devices] = await Promise.all([
-    PrintJob.find({ shopId: shop._id, status: "awaiting_approval" }).sort({ createdAt: 1 }),
-    PrintJob.find({ shopId: shop._id, status: { $nin: ["draft", "awaiting_approval"] } })
+  const [latestCash, jobs, devices] = await Promise.all([
+    latestCashOrder(shop._id),
+    PrintJob.find({ shopId: shop._id, status: { $ne: "draft" } })
       .sort({ createdAt: -1 })
       .limit(100),
     Device.find({ shopId: shop._id }).select("name"),
@@ -55,51 +56,7 @@ async function Jobs() {
 
   return (
     <>
-      <LiveRefresh pendingApprovals={approvals.length} />
-
-      {approvals.length > 0 && (
-        <div className="flex flex-col gap-3">
-          <h2 className="flex items-center gap-2 font-medium">
-            <span className="size-2 animate-pulse rounded-full bg-amber-500" />
-            ক্যাশ অর্ডার — টাকা নিয়ে অনুমোদন দিন
-          </h2>
-          <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
-            {approvals.map((job) => (
-              <Card key={job.id} className="relative overflow-hidden ring-amber-500/50">
-                <div aria-hidden className="pointer-events-none absolute inset-0 bg-linear-to-br from-amber-500/12 to-transparent" />
-                <CardHeader className="relative">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <IconTile icon={BanknoteIcon} tone="amber" />
-                    <div className="min-w-0">
-                      <CardTitle className="text-lg">টোকেন {formatToken(job.token)}</CardTitle>
-                      <CardDescription className="truncate">{job.fileName}</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="relative flex flex-col gap-4">
-                  <div className="grid grid-cols-3 gap-2 text-sm">
-                    <div>
-                      <div className="text-muted-foreground">পৃষ্ঠা × কপি</div>
-                      <div className="font-medium">
-                        {formatNumber(job.pageCount)} × {formatNumber(job.copies)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">ধরন</div>
-                      <div className="font-medium">{COLOR_MODE_LABELS[job.colorMode as ColorMode]}</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">নিতে হবে</div>
-                      <div className="text-base font-semibold">{formatTaka(job.amount)}</div>
-                    </div>
-                  </div>
-                  <ApprovalButtons jobId={job.id} />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
+      <LiveRefresh latestCash={latestCash} />
 
       <Card className="min-w-0">
         <CardHeader>
@@ -146,6 +103,11 @@ async function Jobs() {
                         {formatNumber(job.pageCount)} পৃষ্ঠা × {formatNumber(job.copies)} কপি · {COLOR_MODE_LABELS[job.colorMode as ColorMode]}
                         <span className="sm:hidden"> · {formatTaka(job.amount)}</span>
                       </div>
+                      {job.customer?.name && (
+                        <div className="truncate text-xs text-muted-foreground sm:hidden">
+                          {job.customer.name} · {job.customer.phone}
+                        </div>
+                      )}
                       {job.error && <div className="truncate text-xs text-destructive">{job.error}</div>}
                       <div className="mt-1 md:hidden">
                         <JobStatusBadge status={job.status as JobStatus} />
@@ -162,6 +124,11 @@ async function Jobs() {
                         {job.paymentMethod ? PAYMENT_METHOD_LABELS[job.paymentMethod as PaymentMethod] : "—"}
                         {job.bkash?.trxId && ` · ${job.bkash.trxId}`}
                       </div>
+                      {job.customer?.name && (
+                        <div className="text-xs text-muted-foreground">
+                          {job.customer.name} · <a href={`tel:${job.customer.phone}`} className="hover:underline">{job.customer.phone}</a>
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="hidden text-muted-foreground xl:table-cell">{formatDateTime(job.createdAt)}</TableCell>
                     <TableCell className="hidden md:table-cell">

@@ -1,5 +1,5 @@
 //! The tray app: what the shop owner normally sees. A tray icon with a status menu, a pairing window on
-//! first run, and a popup for cash orders waiting for approval. Printing runs on a background thread
+//! first run, and a status window (tray click / shortcut). Printing runs on a background thread
 //! (`runner`); everything here happens on the main thread's event loop.
 
 use std::{
@@ -27,7 +27,7 @@ use wry::{WebContext, WebView, WebViewBuilder};
 
 use crate::{
     VERSION,
-    api::{ApiError, Approval, Client},
+    api::{ApiError, Client},
     config::{self, Config},
     icon::{self, Dot},
     install,
@@ -44,12 +44,14 @@ const UPDATE_CHECK_EVERY: Duration = Duration::from_secs(6 * 60 * 60);
 const STYLE: &str = include_str!("../ui/style.css");
 const LOGO: &str = include_str!("../ui/logo.svg");
 const PAIR_HTML: &str = include_str!("../ui/pair.html");
-const APPROVALS_HTML: &str = include_str!("../ui/approvals.html");
+const STATUS_HTML: &str = include_str!("../ui/status.html");
+/// Retry the SumatraPDF download this often until it succeeds.
+const SUMATRA_RETRY: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Page {
     Pair,
-    Approvals,
+    Status,
 }
 
 enum UserEvent {
@@ -59,8 +61,6 @@ enum UserEvent {
     /// The server rejected our token.
     Unpaired,
     Ipc(Page, String),
-    Approvals(Result<Vec<Approval>, String>),
-    Decided(Result<(), String>),
     Paired(Result<Config, String>),
     /// The installer, an update or the uninstaller asked us to quit.
     QuitRequested,
@@ -87,8 +87,6 @@ enum IpcMessage {
     Close,
     OpenDashboard,
     Pair { code: String },
-    Approve { id: String },
-    Cancel { id: String },
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -106,7 +104,7 @@ struct Popup {
 
 struct Menus {
     status: MenuItem,
-    approvals: MenuItem,
+    show: MenuItem,
     dashboard: MenuItem,
     autostart: CheckMenuItem,
     pair: MenuItem,
@@ -126,15 +124,11 @@ struct App {
     menus: Menus,
     web_context: WebContext,
     pair: Option<Popup>,
-    approvals: Option<Popup>,
+    status_window: Option<Popup>,
     status: Status,
     sumatra_missing: bool,
     /// Token of the last finished job and whether it printed.
     last_job: Option<(u32, bool)>,
-    pending: u32,
-    latest: Vec<Approval>,
-    /// Close the approvals popup once the owner has dealt with the last order.
-    close_when_empty: bool,
 }
 
 pub fn run(default_server: String) {
@@ -166,7 +160,7 @@ pub fn run(default_server: String) {
         tray: None,
         menus: Menus {
             status: MenuItem::new("চালু হচ্ছে…", false, None),
-            approvals: MenuItem::new("ক্যাশ অর্ডার দেখুন", true, None),
+            show: MenuItem::new("এজেন্টের অবস্থা দেখুন", true, None),
             dashboard: MenuItem::new("ড্যাশবোর্ড খুলুন", true, None),
             autostart: CheckMenuItem::new("Windows চালু হলে এজেন্ট চালু করুন", true, system::autostart_enabled(), None),
             pair: MenuItem::new("দোকানের সাথে আবার যুক্ত করুন", true, None),
@@ -175,13 +169,10 @@ pub fn run(default_server: String) {
         },
         web_context: WebContext::new(Some(config::data_dir().join("webview"))),
         pair: None,
-        approvals: None,
+        status_window: None,
         status: Status::Starting,
         sumatra_missing: print::find_sumatra().is_none(),
         last_job: None,
-        pending: 0,
-        latest: Vec::new(),
-        close_when_empty: false,
     };
 
     event_loop.run(move |event, target, control_flow| {
@@ -209,7 +200,7 @@ impl App {
         let _ = menu.append_items(&[
             &m.status,
             &separator,
-            &m.approvals,
+            &m.show,
             &m.dashboard,
             &PredefinedMenuItem::separator(),
             &m.autostart,
@@ -238,11 +229,7 @@ impl App {
         });
 
         if self.sumatra_missing {
-            let server = self.server.clone();
-            let proxy = self.proxy.clone();
-            thread::spawn(move || {
-                let _ = proxy.send_event(UserEvent::Sumatra(update::ensure_sumatra(&server)));
-            });
+            self.download_sumatra(Duration::ZERO);
         }
 
         // Only the installed copy updates itself (not a dev build run from target/).
@@ -282,7 +269,7 @@ impl App {
         self.stopping = true;
         // Nothing should look clickable while we wait.
         self.pair = None;
-        self.approvals = None;
+        self.status_window = None;
         self.menus.status.set_text("বন্ধ হচ্ছে…");
         let proxy = self.proxy.clone();
         let runner = self.runner.take();
@@ -299,11 +286,7 @@ impl App {
     fn handle(&mut self, event: UserEvent, target: &EventLoopWindowTarget<UserEvent>) -> bool {
         match event {
             UserEvent::Tray(TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. }) => {
-                if self.cfg.is_some() {
-                    self.show_approvals(target, false);
-                } else {
-                    self.open_pair(target);
-                }
+                self.show(target)
             }
             UserEvent::Tray(_) => {}
             UserEvent::Menu(event) => {
@@ -311,8 +294,8 @@ impl App {
                 if event.id == *m.quit.id() {
                     log("Quit from the tray menu");
                     self.stop_then(AfterStop::Quit);
-                } else if event.id == *m.approvals.id() {
-                    self.show_approvals(target, false);
+                } else if event.id == *m.show.id() {
+                    self.show(target);
                 } else if event.id == *m.dashboard.id() {
                     system::open(&format!("{}/dashboard", self.server));
                 } else if event.id == *m.pair.id() {
@@ -334,26 +317,8 @@ impl App {
                     self.last_job = Some((token, ok));
                     self.set_status(self.status);
                 }
-                RunnerEvent::PendingApprovals(count) => {
-                    let increased = count > self.pending;
-                    self.pending = count;
-                    self.set_status(self.status);
-                    if increased {
-                        // A new cash order: pop up and chime.
-                        system::chime();
-                        self.show_approvals(target, true);
-                    } else if self.approvals.is_some() {
-                        self.fetch_approvals();
-                    }
-                }
             },
-            UserEvent::ShowRequested if !self.stopping => {
-                if self.cfg.is_some() {
-                    self.show_approvals(target, false);
-                } else {
-                    self.open_pair(target);
-                }
-            }
+            UserEvent::ShowRequested if !self.stopping => self.show(target),
             UserEvent::ShowRequested => {}
             UserEvent::QuitRequested => {
                 log("Asked to quit by the installer");
@@ -362,6 +327,7 @@ impl App {
             UserEvent::Sumatra(result) => {
                 if let Err(e) = result {
                     log(&format!("Could not download SumatraPDF: {e}"));
+                    self.download_sumatra(SUMATRA_RETRY);
                 }
                 self.sumatra_missing = print::find_sumatra().is_none();
                 self.set_status(self.status);
@@ -385,25 +351,6 @@ impl App {
                 self.open_pair(target);
             }
             UserEvent::Ipc(page, body) => self.handle_ipc(page, &body),
-            UserEvent::Approvals(Ok(jobs)) => {
-                let empty = jobs.is_empty();
-                self.latest = jobs;
-                if empty && self.close_when_empty {
-                    self.approvals = None;
-                } else {
-                    self.render_approvals();
-                }
-                self.close_when_empty = false;
-            }
-            UserEvent::Approvals(Err(e)) | UserEvent::Decided(Err(e)) => {
-                if let Some(popup) = &self.approvals {
-                    let _ = popup.webview.evaluate_script(&format!("showError({})", js_string(&e)));
-                }
-            }
-            UserEvent::Decided(Ok(())) => {
-                self.close_when_empty = true;
-                self.fetch_approvals();
-            }
             UserEvent::Paired(result) => {
                 let shop = result.as_ref().map(|c| c.shop_name.clone()).unwrap_or_default();
                 let (ok, message) = match result {
@@ -419,7 +366,6 @@ impl App {
                         log("Paired with the shop");
                         self.server = cfg.server.clone();
                         self.cfg = Some(cfg.clone());
-                        self.pending = 0;
                         self.start_runner(cfg);
                         (true, String::new())
                     }
@@ -437,11 +383,11 @@ impl App {
     fn handle_ipc(&mut self, page: Page, body: &str) {
         let Ok(message) = serde_json::from_str::<IpcMessage>(body) else { return };
         match message {
-            IpcMessage::Ready if page == Page::Approvals => self.render_approvals(),
+            IpcMessage::Ready if page == Page::Status => self.render_status(),
             IpcMessage::Ready => {}
             IpcMessage::Close => match page {
                 Page::Pair => self.pair = None,
-                Page::Approvals => self.approvals = None,
+                Page::Status => self.status_window = None,
             },
             IpcMessage::OpenDashboard => system::open(&format!("{}/dashboard/devices", self.server)),
             IpcMessage::Pair { code } => {
@@ -458,22 +404,16 @@ impl App {
                     let _ = proxy.send_event(UserEvent::Paired(result));
                 });
             }
-            IpcMessage::Approve { id } => self.decide(id, true),
-            IpcMessage::Cancel { id } => self.decide(id, false),
         }
     }
 
-    fn decide(&self, id: String, approve: bool) {
-        let Some(client) = self.client() else { return };
+    fn download_sumatra(&self, after: Duration) {
+        let server = self.server.clone();
         let proxy = self.proxy.clone();
         thread::spawn(move || {
-            let result = client.decide(&id, approve).map_err(|e| bangla_error(&e));
-            let _ = proxy.send_event(UserEvent::Decided(result));
+            thread::sleep(after);
+            let _ = proxy.send_event(UserEvent::Sumatra(update::ensure_sumatra(&server)));
         });
-    }
-
-    fn client(&self) -> Option<Client> {
-        self.cfg.as_ref().map(|c| Client::new(&c.server, Some(c.token.clone())))
     }
 
     fn start_runner(&mut self, cfg: Config) {
@@ -502,34 +442,38 @@ impl App {
         }
     }
 
-    fn fetch_approvals(&self) {
-        let Some(client) = self.client() else { return };
-        let proxy = self.proxy.clone();
-        thread::spawn(move || {
-            let result = client.approvals().map_err(|e| bangla_error(&e));
-            let _ = proxy.send_event(UserEvent::Approvals(result));
-        });
-    }
-
-    fn show_approvals(&mut self, target: &EventLoopWindowTarget<UserEvent>, on_top: bool) {
+    /// Tray click, the shortcut, or the menu: the pairing window if not paired, else the status window.
+    fn show(&mut self, target: &EventLoopWindowTarget<UserEvent>) {
         if self.cfg.is_none() {
-            return;
+            return self.open_pair(target);
         }
-        match &self.approvals {
+        match &self.status_window {
             Some(popup) => {
                 popup.window.set_minimized(false);
                 popup.window.set_focus();
             }
-            None => self.approvals = self.open_popup(target, Page::Approvals, on_top),
+            None => self.status_window = self.open_popup(target, Page::Status, false),
         }
-        self.fetch_approvals();
     }
 
-    fn render_approvals(&self) {
-        if let Some(popup) = &self.approvals {
-            let json = serde_json::to_string(&self.latest).unwrap_or_else(|_| "[]".into());
-            let _ = popup.webview.evaluate_script(&format!("render({json})"));
-        }
+    fn render_status(&self) {
+        let Some(popup) = &self.status_window else { return };
+        let (state, printers, enabled) = match self.status {
+            Status::Starting => ("starting", 0, 0),
+            Status::Online { printers, enabled } => ("online", printers, enabled),
+            Status::Offline => ("offline", 0, 0),
+            Status::Unpaired => ("unpaired", 0, 0),
+        };
+        let data = serde_json::json!({
+            "state": state,
+            "printers": printers,
+            "enabled": enabled,
+            "shop": self.cfg.as_ref().map(|c| c.shop_name.clone()).unwrap_or_default(),
+            "lastJob": self.last_job.map(|(token, ok)| serde_json::json!({ "token": token, "ok": ok })),
+            "sumatraMissing": self.sumatra_missing,
+            "version": VERSION,
+        });
+        let _ = popup.webview.evaluate_script(&format!("render({data})"));
     }
 
     fn open_pair(&mut self, target: &EventLoopWindowTarget<UserEvent>) {
@@ -547,8 +491,8 @@ impl App {
         if self.pair.as_ref().is_some_and(|p| p.window.id() == id) {
             self.pair = None;
         }
-        if self.approvals.as_ref().is_some_and(|p| p.window.id() == id) {
-            self.approvals = None;
+        if self.status_window.as_ref().is_some_and(|p| p.window.id() == id) {
+            self.status_window = None;
         }
     }
 
@@ -565,12 +509,7 @@ impl App {
         };
         let text = if self.sumatra_missing { format!("{text} · প্রিন্ট সফটওয়্যার পাওয়া যায়নি") } else { text };
         self.menus.status.set_text(&text);
-        self.menus.approvals.set_text(if self.pending > 0 {
-            format!("ক্যাশ অর্ডার দেখুন ({})", bn(self.pending as usize))
-        } else {
-            "ক্যাশ অর্ডার দেখুন".to_string()
-        });
-        self.menus.approvals.set_enabled(self.cfg.is_some());
+        self.render_status();
         if let Some(tray) = &self.tray {
             let last = match self.last_job {
                 Some((token, true)) => format!("\nসর্বশেষ: #{} প্রিন্ট হয়েছে", bn(token as usize)),
@@ -578,7 +517,7 @@ impl App {
                 None => String::new(),
             };
             let _ = tray.set_tooltip(Some(format!("Scan & Print\n{text}{last}")));
-            let _ = tray.set_icon(Some(tray_icon(status, self.pending > 0 || self.sumatra_missing)));
+            let _ = tray.set_icon(Some(tray_icon(status, self.sumatra_missing)));
         }
     }
 }
@@ -622,14 +561,14 @@ fn window_icon() -> Option<tao::window::Icon> {
 fn page_window(page: Page) -> (&'static str, (f64, f64), bool) {
     match page {
         Page::Pair => ("Scan & Print", (440.0, 500.0), false),
-        Page::Approvals => ("ক্যাশ অর্ডার — Scan & Print", (480.0, 620.0), true),
+        Page::Status => ("Scan & Print", (420.0, 570.0), false),
     }
 }
 
 fn page_html(page: Page) -> String {
     match page {
         Page::Pair => PAIR_HTML,
-        Page::Approvals => APPROVALS_HTML,
+        Page::Status => STATUS_HTML,
     }
     .replace("/*STYLE*/", STYLE)
     .replace("<!--LOGO-->", LOGO)
@@ -669,10 +608,11 @@ fn build_popup(
     Some(Popup { window, webview })
 }
 
-/// Debug builds only: `scan-print-agent ui-preview <pair|pair-error|pair-done|approvals|approvals-empty>`
+/// Debug builds only: `scan-print-agent ui-preview <pair|pair-error|pair-done|status|status-setup|status-offline>`
 /// opens a window with sample data, without touching the saved connection or a running agent.
 #[cfg(debug_assertions)]
 pub fn preview(which: &str) {
+    let status = |data: serde_json::Value| (Page::Status, format!("render({data})"));
     let (page, script) = match which {
         "pair" => (Page::Pair, String::new()),
         "pair-error" => (
@@ -680,15 +620,18 @@ pub fn preview(which: &str) {
             r#"document.getElementById("code").value = "WRONG123"; pairResult(false, "কোডটি ভুল অথবা মেয়াদোত্তীর্ণ। ড্যাশবোর্ড থেকে নতুন কোড নিন।", "")"#.into(),
         ),
         "pair-done" => (Page::Pair, r#"pairResult(true, "", "Rakib Photocopy")"#.into()),
-        "approvals-empty" => (Page::Approvals, "render([])".into()),
-        _ => {
-            let now = "2026-11-07T06:30:00Z";
-            let jobs = serde_json::json!([
-                { "id": "a", "token": 7, "pageCount": 2, "copies": 3, "colorMode": "bw", "amount": 12, "createdAt": now },
-                { "id": "b", "token": 12, "pageCount": 14, "copies": 1, "colorMode": "color", "amount": 140, "createdAt": now },
-            ]);
-            (Page::Approvals, format!("render({jobs})"))
-        }
+        "status-setup" => status(serde_json::json!({
+            "state": "online", "printers": 2, "enabled": 0, "shop": "Rakib Photocopy",
+            "lastJob": null, "sumatraMissing": true, "version": VERSION,
+        })),
+        "status-offline" => status(serde_json::json!({
+            "state": "offline", "printers": 0, "enabled": 0, "shop": "Rakib Photocopy",
+            "lastJob": { "token": 41, "ok": false }, "sumatraMissing": false, "version": VERSION,
+        })),
+        _ => status(serde_json::json!({
+            "state": "online", "printers": 3, "enabled": 2, "shop": "Rakib Photocopy",
+            "lastJob": { "token": 42, "ok": true }, "sumatraMissing": false, "version": VERSION,
+        })),
     };
     let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
     let mut web_context = WebContext::new(Some(std::env::temp_dir().join("scan-print-ui-preview")));

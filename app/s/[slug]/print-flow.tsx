@@ -1,9 +1,10 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { BanknoteIcon, FileTextIcon, MinusIcon, PlusIcon, TriangleAlertIcon, UploadIcon, XIcon } from "lucide-react"
+import { FileTextIcon, MinusIcon, PlusIcon, TriangleAlertIcon, UploadIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 import { BkashButton } from "@/components/bkash"
+import { CashCheckout, type CashCustomer } from "@/components/cash-checkout"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -83,7 +84,7 @@ export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUplo
     }
   }
 
-  async function checkout(method: PaymentMethod) {
+  async function checkout(method: PaymentMethod, customerInfo?: CashCustomer) {
     if (!uploaded) return
     setPaying(method)
     try {
@@ -91,6 +92,7 @@ export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUplo
         colorMode,
         copies,
         method,
+        customer: customerInfo,
       })
       window.location.href = redirectUrl
     } catch (error) {
@@ -246,15 +248,13 @@ export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUplo
           />
         )}
         {shop.payments.cash && (
-          <Button
-            size="lg"
-            variant={shop.payments.bkash ? "outline" : "default"}
-            className="h-12 w-full text-base"
+          <CashCheckout
+            amount={total}
+            outline={shop.payments.bkash}
+            pending={paying === "cash"}
             disabled={!!paying}
-            onClick={() => checkout("cash")}
-          >
-            {paying === "cash" ? <Spinner /> : <BanknoteIcon />} কাউন্টারে ক্যাশ দেব
-          </Button>
+            onSubmit={(customer) => checkout("cash", customer)}
+          />
         )}
       </CardFooter>
     </Card>

@@ -105,3 +105,11 @@ export async function discardJobFile(job: PrintJobDoc) {
   await deleteFile(job.fileKey).catch((error) => console.error("Failed to delete file", job.fileKey, error))
   await PrintJob.updateOne({ _id: job._id }, { $set: { fileDeleted: true } })
 }
+
+/** The newest cash order, so dashboard pages can chime when another one comes in. */
+export async function latestCashOrder(shopId: Id) {
+  const job = await PrintJob.findOne({ shopId, paymentMethod: "cash", status: { $nin: ["draft", "cancelled"] } })
+    .sort({ createdAt: -1 })
+    .select("token amount customer")
+  return job ? { token: job.token, amount: job.amount, name: job.customer?.name ?? "" } : null
+}

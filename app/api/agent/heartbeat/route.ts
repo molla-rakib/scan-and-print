@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { authenticateAgent, jsonError, parseBody } from "@/lib/api"
 import { rebalanceQueue } from "@/lib/jobs"
-import { Agent, Device, PrintJob } from "@/lib/models"
+import { Agent, Device } from "@/lib/models"
 
 const schema = z.object({
   machineName: z.string().trim().max(120).optional(),
@@ -47,10 +47,8 @@ export async function POST(request: Request) {
   await rebalanceQueue(agent.shopId)
 
   const devices = await Device.find({ agentId: agent._id }).select("systemName enabled")
-  const pendingApprovals = await PrintJob.countDocuments({ shopId: agent.shopId, status: "awaiting_approval" })
 
   return NextResponse.json({
     devices: devices.map((d) => ({ systemName: d.systemName, enabled: d.enabled })),
-    pendingApprovals,
   })
 }

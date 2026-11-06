@@ -1,6 +1,6 @@
 "use client"
 
-import { CheckIcon, MoreHorizontalIcon, RotateCcwIcon, XIcon } from "lucide-react"
+import { CheckIcon, MoreHorizontalIcon, PrinterIcon, RotateCcwIcon, XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Spinner } from "@/components/ui/spinner"
@@ -8,23 +8,15 @@ import { useAction } from "@/components/use-action"
 import type { JobStatus } from "@/lib/constants"
 import { approveJob, cancelJob, markJobCompleted, reprintJob } from "../actions"
 
-export function ApprovalButtons({ jobId }: { jobId: string }) {
-  const { pending, run } = useAction()
-  return (
-    <div className="grid grid-cols-[auto_1fr] gap-2">
-      <Button variant="outline" disabled={pending} onClick={() => run(() => cancelJob(jobId), { success: "অর্ডার বাতিল করা হয়েছে" })}>
-        <XIcon /> বাতিল
-      </Button>
-      <Button disabled={pending} onClick={() => run(() => approveJob(jobId), { success: "প্রিন্ট শুরু হচ্ছে" })}>
-        {pending ? <Spinner /> : <CheckIcon />} টাকা পেয়েছি, প্রিন্ট করুন
-      </Button>
-    </div>
-  )
-}
-
 export function JobActions({ jobId, status, canReprint }: { jobId: string; status: JobStatus; canReprint: boolean }) {
   const { pending, run } = useAction()
   const actions = [
+    // Orders placed before cash orders stopped needing approval.
+    status === "awaiting_approval" && {
+      label: "প্রিন্ট করুন",
+      icon: PrinterIcon,
+      onClick: () => run(() => approveJob(jobId), { success: "প্রিন্ট শুরু হচ্ছে" }),
+    },
     status === "failed" &&
       canReprint && { label: "আবার প্রিন্ট করুন", icon: RotateCcwIcon, onClick: () => run(() => reprintJob(jobId), { success: "আবার লাইনে দেওয়া হয়েছে" }) },
     (status === "printing" || status === "failed") && {
@@ -32,7 +24,7 @@ export function JobActions({ jobId, status, canReprint }: { jobId: string; statu
       icon: CheckIcon,
       onClick: () => run(() => markJobCompleted(jobId), { success: "সম্পন্ন হিসেবে চিহ্নিত হয়েছে" }),
     },
-    (status === "queued" || status === "failed" || status === "pending_payment") && {
+    (status === "queued" || status === "failed" || status === "pending_payment" || status === "awaiting_approval") && {
       label: "অর্ডার বাতিল করুন",
       icon: XIcon,
       destructive: true,

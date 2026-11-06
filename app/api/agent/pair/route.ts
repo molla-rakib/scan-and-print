@@ -18,10 +18,12 @@ export async function POST(request: Request) {
 
   await connectDb()
   const token = randomToken()
+  // One timestamp: the dashboard treats lastSeenAt > pairedAt as "the PC has checked in since pairing".
+  const now = new Date()
   const agent = await Agent.findOneAndUpdate(
-    { pairingCode: body.code, pairingExpiresAt: { $gt: new Date() } },
+    { pairingCode: body.code, pairingExpiresAt: { $gt: now } },
     {
-      $set: { tokenHash: sha256(token), machineName: body.machineName, version: body.version, pairedAt: new Date(), lastSeenAt: new Date() },
+      $set: { tokenHash: sha256(token), machineName: body.machineName, version: body.version, pairedAt: now, lastSeenAt: now },
       $unset: { pairingCode: 1, pairingExpiresAt: 1 },
     },
     { returnDocument: "after" }

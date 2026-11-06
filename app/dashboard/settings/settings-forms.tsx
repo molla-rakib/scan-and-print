@@ -150,8 +150,8 @@ export function CashForm({ enabled }: { enabled: boolean }) {
           <FieldContent>
             <FieldTitle>কাউন্টারে ক্যাশ নিন</FieldTitle>
             <FieldDescription>
-              গ্রাহক &quot;ক্যাশ&quot; বেছে নিলে অর্ডারটি আপনার অনুমোদনের জন্য অপেক্ষা করবে। টাকা নিয়ে &quot;প্রিন্ট করুন&quot;
-              চাপলেই প্রিন্ট শুরু হবে।
+              গ্রাহক &quot;ক্যাশ&quot; বেছে নিলে নাম ও মোবাইল নম্বর দিয়ে অর্ডার দেবে, অর্ডারটি সাথে সাথে প্রিন্ট হবে।
+              কাউন্টারে টোকেন মিলিয়ে টাকা নিন। নতুন ক্যাশ অর্ডারে ড্যাশবোর্ডে শব্দ হবে।
             </FieldDescription>
           </FieldContent>
           <Switch

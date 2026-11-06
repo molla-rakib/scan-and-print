@@ -26,7 +26,7 @@ Customer payments go **directly to the shop's own bKash merchant account**, neve
 | Role | How they sign in | What they do |
 |---|---|---|
 | Admin (us) | Google, email listed in `ADMIN_EMAILS` | Manage shops, device limits, subscriptions, suspend shops |
-| Shop owner | Google | Connect PCs/printers, set prices, bKash + cash settings, approve cash orders, print the QR poster |
+| Shop owner | Google | Connect PCs/printers, set prices, bKash + cash settings, collect cash at the counter, print the QR poster |
 | Customer | No login | Upload, pay, follow the job live |
 
 ---
@@ -66,7 +66,7 @@ that Windows can print to will work.
 | Shop PCs need **Windows 10 or newer** (decided 2026-11-06) | Current Rust and WebView2 support it out of the box; the popup is HTML (tao + wry + tray-icon, the libraries under Tauri) so Bangla renders like the website. |
 | Print through Windows drivers | Supports essentially every printer/MFP brand. Pure analog copiers (no print port) cannot be supported. |
 | Each shop connects **its own bKash merchant (Tokenized Checkout / PGW)** | Money goes straight to the shop. Collecting payments for shops would require a Bangladesh Bank license. |
-| **Cash mode** with mandatory owner approval | Shops without PGW access can still operate, and nobody can print for free from home. The owner taps "approve" after taking the money. |
+| **Cash orders print immediately**; name + mobile number required (changed 2026-11-07, was mandatory owner approval) | Approving every cash order annoyed shop owners. Shops without PGW access can still operate. Trade-off: someone could order from home without paying; the required name and phone make every cash job traceable, and the dashboard chimes with who owes how much. |
 | **Google login only** (no email OTP) | Simplest for owners, and no email infrastructure is needed. |
 | Customers do **not** log in | Lowest friction at the counter. A random job link + token number identifies the order. |
 | **MongoDB** (replica set), files in **GridFS** | The replica set enables transactions. PDFs are only kept until printed, so GridFS replaces MinIO (one less service; MinIO images are discontinued). |
@@ -87,7 +87,7 @@ that Windows can print to will work.
 - [x] Customer flow `/s/[slug]`: direct-to-storage PDF upload with progress, page counting, B/W/color, copies, live price
 - [x] Job status page `/j/[id]`: token, live status (queue position → printing → done), retry payment
 - [x] bKash Tokenized Checkout per shop: encrypted credentials, verified on save, callback + execute + status fallback
-- [x] Cash mode: approval cards in the dashboard with a sound alert
+- [x] Cash mode: prints right away with the customer's name + phone (approval removed 2026-11-07); dashboard chimes on new cash orders
 - [x] Automatic printer routing (color vs B/W, least busy, re-route when a PC goes offline)
 - [x] Agent API: pair, heartbeat, claim job, report result
 - [x] Owner dashboard: overview stats + setup checklist, orders (approve/cancel/reprint/mark done), devices
@@ -116,10 +116,8 @@ Code lives in `agent/` (see `agent/README.md`). Release with `agent/release.ps1`
       icon + menu (online/offline, printers, cash orders, open dashboard, re-pair, log file, quit), first-run
       pairing window, single instance; clicking the shortcut while running brings it forward. Release builds
       have no console window. *(Tested on the dev PC)*
-- [x] Cash-order popup on the shop PC: pops up with a chime when a cash order arrives, shows token, pages,
-      copies, color and amount, with "বাতিল" / "টাকা পেয়েছি, প্রিন্ট করুন". Server: `GET /api/agent/approvals`,
-      `POST /api/agent/approvals/[id]`, and `pendingApprovals` in the claim response. *(Tested: popup appears,
-      approve queues the job, closes after the last order; API approve/cancel/409/400/401)*
+- [x] Status window on the shop PC (tray click / shortcut): online state, shop, printers, last job, version.
+      (Replaced the cash-approval popup, removed 2026-11-07 because cash orders no longer need approval.)
 - [x] Installer: the downloaded exe installs itself per user (no admin) to `%LOCALAPPDATA%\Programs\ScanAndPrint`,
       Start Menu + desktop shortcuts, Settings → Apps entry with uninstall (removes everything incl. saved token).
       "এজেন্ট ডাউনলোড" button + link in the pairing dialog on Dashboard → ডিভাইস. *(Tested install/uninstall)*
@@ -171,3 +169,4 @@ Code lives in `agent/` (see `agent/README.md`). Release with `agent/release.ps1`
 | 2026-11-06 | Decided: auto-start tray app, Windows 10+. Built the tray app (status icon + menu, pairing window, start with Windows, log file) and the cash-approval popup, plus the agent approvals API on the server. Release exe 1.9 MB. |
 | 2026-11-07 | Landing page redesigned with a print-shop identity (CMYK accents, paper texture, live-queue ticker, before/after, bento features, receipt-style pricing; hero shows a printer feeding out the order slip with token, QR poster and cash-alert note). Admin panel moved into the dashboard at `/dashboard/admin` (`/admin` redirects; sidebar works for admins without a shop). Fixed the sidebar profile menu crash (Base UI `GroupLabel` outside `Group`) and added Settings/Admin links to it. Font switched to Noto Sans Bengali site-wide. |
 | 2026-11-07 | Print agent 1.0.0 finished: self-installing per-user exe with shortcuts and uninstall, auto-update via `/downloads/agent.json`, SumatraPDF downloaded on first start, embedded icon, production server `https://scan-and-print.vercel.app` built in, `agent/release.ps1`. Dashboard → ডিভাইস has an "এজেন্ট ডাউনলোড" button. Tested on the dev PC against a local server: install, pairing window, cash popup + approve, auto-update 1.0.0 → 1.0.1, uninstall. Not yet tested on a real printer. |
+| 2026-11-07 | **Cash orders no longer need approval**: the customer enters name + mobile number (validated; Bangla digits and +88 accepted) and the job is queued immediately. Removed the approval cards, sidebar badge, agent popup and `/api/agent/approvals`; old `awaiting_approval` jobs can still be printed or cancelled from the order menu. Dashboard shows the customer on cash orders, chimes with who owes how much, and the overview shows today's cash to collect. The pairing dialog now shows the PC connecting live (waiting → connected → printers found). Agent: status window instead of the popup, redesigned pairing window, SumatraPDF download retried every minute. |

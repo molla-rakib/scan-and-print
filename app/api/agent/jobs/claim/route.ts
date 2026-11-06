@@ -13,24 +13,20 @@ export async function POST(request: Request) {
   await rebalanceQueue(agent.shopId)
   sweepOrphanFiles().catch((error) => console.error("File sweep failed", error))
 
-  // Lets the shop PC show the cash-approval popup within one poll interval.
-  const pendingApprovals = await PrintJob.countDocuments({ shopId: agent.shopId, status: "awaiting_approval" })
-
   const job = await PrintJob.findOneAndUpdate(
     { agentId: agent._id, status: "queued", deviceId: { $ne: null } },
     { $set: { status: "printing", startedAt: new Date() } },
     { sort: { queuedAt: 1 }, returnDocument: "after" }
   )
-  if (!job) return NextResponse.json({ job: null, pendingApprovals })
+  if (!job) return NextResponse.json({ job: null })
 
   const device = await Device.findById(job.deviceId)
   if (!device) {
     await PrintJob.updateOne({ _id: job._id }, { $set: { status: "queued" }, $unset: { deviceId: 1, agentId: 1 } })
-    return NextResponse.json({ job: null, pendingApprovals })
+    return NextResponse.json({ job: null })
   }
 
   return NextResponse.json({
-    pendingApprovals,
     job: {
       id: job.id,
       token: job.token,

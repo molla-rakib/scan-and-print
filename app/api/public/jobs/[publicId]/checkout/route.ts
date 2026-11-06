@@ -2,21 +2,28 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { jsonError, parseBody } from "@/lib/api"
 import { BkashError, createPayment, shopBkashCredentials } from "@/lib/bkash"
-import { MAX_COPIES } from "@/lib/constants"
+import { MAX_COPIES, normalizeBdPhone } from "@/lib/constants"
 import { connectDb } from "@/lib/db"
 import { env } from "@/lib/env"
-import { paymentOptions, shopIsOpen } from "@/lib/jobs"
+import { paymentOptions, queueJob, shopIsOpen } from "@/lib/jobs"
 import { Device, PrintJob, Shop } from "@/lib/models"
 
 const schema = z.object({
   colorMode: z.enum(["bw", "color"]),
   copies: z.number().int().min(1).max(MAX_COPIES),
   method: z.enum(["bkash", "cash"]),
+  customer: z
+    .object({
+      name: z.string().trim().max(80),
+      phone: z.string().trim().max(20),
+    })
+    .optional(),
 })
 
 /**
  * Confirms print options and starts payment.
- * bKash: returns the bKash payment page URL. Cash: the job waits for the owner's approval.
+ * bKash: returns the bKash payment page URL. Cash: prints right away; the customer's name and phone
+ * (required) tell the shop who owes the money.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ publicId: string }> }) {
   const { publicId } = await params
@@ -43,8 +50,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ pub
   job.set({ colorMode: body.colorMode, copies: body.copies, pricePerPage, amount, paymentMethod: body.method })
 
   if (body.method === "cash") {
-    job.set({ status: "awaiting_approval", draftExpiresAt: undefined })
+    const name = body.customer?.name ?? ""
+    const phone = normalizeBdPhone(body.customer?.phone ?? "")
+    if (name.length < 2) return jsonError("ক্যাশে দিতে আপনার নাম লিখুন")
+    if (!phone) return jsonError("সঠিক মোবাইল নম্বর লিখুন (যেমন ০১৭১২৩৪৫৬৭৮)")
+    job.set({ customer: { name, phone } })
     await job.save()
+    await queueJob(job._id, ["draft", "pending_payment"])
     return NextResponse.json({ redirectUrl: statusPage })
   }
 
