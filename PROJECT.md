@@ -3,7 +3,7 @@
 Living document: the goal, the decisions behind the design, what is done, and what comes next.
 Update it whenever a feature lands, a decision changes, or a question gets answered.
 
-_Last updated: 2026-11-04_
+_Last updated: 2026-11-05_
 
 ---
 
@@ -46,8 +46,9 @@ The system has two pieces of software, both built by us:
 
 1. **Website and API.** The customer pages, owner dashboard, admin panel and the API the agent uses. *(Built.)*
 2. **Print agent.** A small Windows program on the shop's PC. It reports the installed printers, picks up
-   paid jobs, prints them through the normal Windows printer drivers, and reports the result. *(Not built
-   yet. `scripts/dev-agent.mjs` is a fake version for testing.)*
+   paid jobs, prints them through the normal Windows printer drivers, and reports the result. *(Core built
+   in Rust in `agent/`; tray, installer and auto-update still to do. `scripts/dev-agent.mjs` is a fake
+   version for testing.)*
 
 Why an agent is needed: a website cannot reach a printer inside a shop. The agent runs next to the printers
 and connects out to our server. Because it prints through Windows drivers, any printer or digital copier
@@ -60,7 +61,7 @@ that Windows can print to will work.
 | Decision | Why |
 |---|---|
 | Build our own print agent (not PrintNode etc.) | Full control (pairing, cash-approval popups, branding). No per-printer fee eating into the ৳300/device. The server API already exists. |
-| Agent in **Go**, running as a Windows service | Single small `.exe`, easy to install, starts with Windows, can later target Linux/Raspberry Pi. |
+| Agent in **Rust** (switched from Go on 2026-11-05) | The dev machine is already set up for Rust. Single small `.exe` (~2–5 MB), Microsoft's official `windows` crate for the printer APIs, fewer antivirus false positives than Go binaries, and the Bangla cash popup can be built with Tauri. Can still target Linux/Raspberry Pi later. |
 | Print through Windows drivers | Supports essentially every printer/MFP brand. Pure analog copiers (no print port) cannot be supported. |
 | Each shop connects **its own bKash merchant (Tokenized Checkout / PGW)** | Money goes straight to the shop. Collecting payments for shops would require a Bangladesh Bank license. |
 | **Cash mode** with mandatory owner approval | Shops without PGW access can still operate, and nobody can print for free from home. The owner taps "approve" after taking the money. |
@@ -95,15 +96,19 @@ that Windows can print to will work.
 - [x] Royal blue theme, colorful dashboard, fully responsive on mobile
 - [x] Tested end-to-end: upload → cash → approve → routed to color printer → printed → file deleted
 
-### 🔜 Next: Phase 2, Windows print agent (Go)
+### 🔜 Next: Phase 2, Windows print agent (Rust)
 
-Prerequisite: install Go on the dev machine (https://go.dev/dl/).
+Prerequisite: Rust toolchain (already installed on the dev machine). Code lives in `agent/` (see `agent/README.md`).
 
-- [ ] Pairing: first run asks for the pairing code, saves the token securely
-- [ ] Enumerate installed Windows printers + detect color/duplex capability
-- [ ] Heartbeat every ~30 s; poll for jobs every ~3 s; reconnect after internet loss
-- [ ] Download the PDF and print it with B/W or color and copies applied (likely via bundled SumatraPDF CLI)
-- [ ] Report completed / failed (with the printer error message)
+- [x] Pairing: `scan-print-agent pair <CODE>`, token saved encrypted with Windows DPAPI
+- [x] Enumerate installed Windows printers + detect color/duplex capability and state (offline, paper out, …);
+      fax / print-to-file printers are not offered
+- [x] Heartbeat every ~30 s; poll for jobs every ~3 s; back off and reconnect after internet loss;
+      stops with a clear message when the PC is removed in the dashboard
+- [x] Download the PDF and print it with B/W or color and copies applied via SumatraPDF CLI; PDF deleted
+      from the PC right after *(code done; not yet tested on a real printer)*
+- [x] Report completed / failed (Bangla error message shown in the dashboard), retried through short outages
+- [ ] Test on a real printer with SumatraPDF next to the agent (B/W, color, copies)
 - [ ] Run as a Windows service + system tray icon (status, re-pair, quit)
 - [ ] Cash-order popup on the shop PC with an "Approve" button (needs a small agent API addition)
 - [ ] Installer (`.exe`) + "Download Print Agent" button in Dashboard → Devices
@@ -133,7 +138,8 @@ Prerequisite: install Go on the dev machine (https://go.dev/dl/).
 
 ## 5. Open items waiting on the owner
 
-- [ ] Install Go (needed for Phase 2)
+- [ ] Decide: Windows service, or auto-start app in the user session (a service runs in session 0 and cannot show the tray icon or cash popup itself)
+- [ ] Confirm the minimum Windows version for shop PCs (stable Rust and WebView2/Tauri need Windows 10+)
 - [ ] bKash sandbox credentials to test payments end-to-end
 - [ ] Decide which Google account(s) are admin (`ADMIN_EMAILS` in `.env`)
 - [ ] Domain name + hosting choice (Phase 3)
@@ -147,3 +153,4 @@ Prerequisite: install Go on the dev machine (https://go.dev/dl/).
 |---|---|
 | 2026-11-03 | Project idea discussed. Architecture, stack and key decisions agreed. Docker infra + full web MVP built. |
 | 2026-11-04 | Switched email OTP → Google login. Full Bangla UI (Anek Bangla). Royal blue theme, more spacing, colorful dashboard, mobile fixes. "ক্যাশ" wording, bKash logo. Session-aware landing/login. Decided to build our own print agent in Go. Exact npm versions (`.npmrc` save-exact). Replaced MinIO with MongoDB GridFS; docker-compose is MongoDB only. |
+| 2026-11-05 | Print agent language changed from Go to Rust (dev machine already set up for Rust). Built the core Rust agent (`agent/`): pairing, printer detection, heartbeat/poll loop with reconnect, download + SumatraPDF printing, result reporting. Tested end-to-end in dry-run mode against the local server (pair → heartbeat → claim → download → completed → file deleted; removed PC → agent stops). 1.5 MB release exe. |

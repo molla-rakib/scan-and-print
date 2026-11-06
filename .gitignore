@@ -43,3 +43,6 @@ scripts/.agent-token
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# rust print agent build output
+/agent/target

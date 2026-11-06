@@ -75,7 +75,7 @@ Agents authenticate with a bearer token; only its SHA-256 hash is stored.
 - `jobs/claim` returns the next job; the agent downloads it from `jobs/[id]/file` with its bearer token.
 - `jobs/[id]` reports the result.
 
-The real Windows agent (planned in Go) is not built yet. `scripts/dev-agent.mjs` speaks the same protocol for testing.
+The real Windows agent is a Rust console app in `agent/` (see `agent/README.md`): `cargo build --release`, then `scan-print-agent pair <CODE>` and `scan-print-agent run [--dry-run --include-virtual]`. It prints through the SumatraPDF CLI; tray, service/installer and auto-update are not built yet. `scripts/dev-agent.mjs` speaks the same protocol for testing.
 
 ### Auth and session
 
