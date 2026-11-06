@@ -21,6 +21,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import { TableCell } from "@/components/ui/table"
 import { useAction } from "@/components/use-action"
+import { AGENT_DOWNLOAD_URL } from "@/lib/constants"
 import { createPairingCode, removeAgent, updateDevice } from "../actions"
 
 export function PairPcButton() {
@@ -50,7 +51,13 @@ export function PairPcButton() {
           <DialogDescription>যে কম্পিউটারে প্রিন্টারগুলো ইনস্টল করা আছে, সেখানে এই ধাপগুলো অনুসরণ করুন।</DialogDescription>
         </DialogHeader>
         <ol className="flex list-decimal flex-col gap-2 pl-5 text-sm">
-          <li>কম্পিউটারে প্রিন্ট এজেন্ট ডাউনলোড ও ইনস্টল করুন।</li>
+          <li>
+            কম্পিউটারে{" "}
+            <a href={AGENT_DOWNLOAD_URL} download className="font-medium text-primary underline underline-offset-4">
+              প্রিন্ট এজেন্ট ডাউনলোড
+            </a>{" "}
+            করে চালান, এটি নিজেই ইনস্টল হবে। Windows সতর্কবার্তা দেখালে &quot;More info&quot; → &quot;Run anyway&quot; চাপুন।
+          </li>
           <li>এজেন্ট চালু করে নিচের পেয়ারিং কোডটি দিন।</li>
           <li>প্রিন্টারগুলো এই পেজে দেখা গেলে যেগুলো ব্যবহার করবেন সেগুলো চালু করুন।</li>
         </ol>

@@ -17,6 +17,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -116,10 +117,15 @@ export function PendingBadge({ count }: { count: number }) {
 }
 
 export function AdminNavItem() {
+  const pathname = usePathname()
   const closeOnMobile = useCloseOnMobile()
   return (
     <SidebarMenuItem>
-      <SidebarMenuButton render={<Link href="/admin" onClick={closeOnMobile} />}>
+      <SidebarMenuButton
+        isActive={pathname.startsWith("/dashboard/admin")}
+        className={activeClass}
+        render={<Link href="/dashboard/admin" onClick={closeOnMobile} />}
+      >
         <ShieldIcon className="text-rose-600" />
         <span>অ্যাডমিন</span>
       </SidebarMenuButton>
@@ -127,25 +133,38 @@ export function AdminNavItem() {
   )
 }
 
-export function UserMenu({ shopName, email }: { shopName: string; email: string }) {
+export function UserMenu({ title, email, isAdmin }: { title: string; email: string; isAdmin: boolean }) {
+  const closeOnMobile = useCloseOnMobile()
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={<SidebarMenuButton size="lg" />}>
         <Avatar className="size-8 rounded-lg">
           <AvatarFallback className="rounded-lg bg-primary text-primary-foreground">
-            {shopName.slice(0, 2).toUpperCase()}
+            {title.slice(0, 2).toUpperCase()}
           </AvatarFallback>
         </Avatar>
         <div className="grid flex-1 text-left text-sm leading-tight">
-          <span className="truncate font-medium">{shopName}</span>
+          <span className="truncate font-medium">{title}</span>
           <span className="truncate text-xs text-muted-foreground">{email}</span>
         </div>
         <ChevronsUpDownIcon className="ml-auto size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent side="top" align="start" className="w-(--anchor-width) min-w-56">
-        <DropdownMenuLabel className="truncate">{email}</DropdownMenuLabel>
+        {/* Base UI requires GroupLabel to sit inside a Group; without it the menu throws on open. */}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="truncate">{email}</DropdownMenuLabel>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => logout()}>
+        <DropdownMenuItem render={<Link href="/dashboard/settings" onClick={closeOnMobile} />}>
+          <SettingsIcon /> সেটিংস
+        </DropdownMenuItem>
+        {isAdmin && (
+          <DropdownMenuItem render={<Link href="/dashboard/admin" onClick={closeOnMobile} />}>
+            <ShieldIcon /> অ্যাডমিন
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" onClick={() => logout()}>
           <LogOutIcon /> লগআউট
         </DropdownMenuItem>
       </DropdownMenuContent>

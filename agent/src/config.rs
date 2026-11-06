@@ -20,6 +20,7 @@ struct Stored {
     token: String,
 }
 
+#[derive(Clone)]
 pub struct Config {
     pub server: String,
     pub agent_id: String,

@@ -22,6 +22,7 @@ export function MobileNav({ items, dashboardHref }: { items: { href: string; lab
           {items.map((item) => (
             <SheetClose
               key={item.href}
+              nativeButton={false}
               render={<a href={item.href} className="rounded-md px-3 py-2.5 text-base hover:bg-accent hover:text-accent-foreground" />}
             >
               {item.label}

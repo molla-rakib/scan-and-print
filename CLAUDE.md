@@ -8,7 +8,7 @@ Automatic printing for print/photocopy shops in Bangladesh. A customer scans a s
 
 Three roles:
 
-- **Admin**: Google accounts listed in `ADMIN_EMAILS`, at `/admin`.
+- **Admin**: Google accounts listed in `ADMIN_EMAILS`, at `/dashboard/admin` (inside the same dashboard shell; `/admin` redirects there).
 - **Shop owner**: Google login, at `/dashboard`.
 - **Customer**: no login. Uses `/s/[slug]` to order and `/j/[publicId]` to watch the job.
 
@@ -75,7 +75,9 @@ Agents authenticate with a bearer token; only its SHA-256 hash is stored.
 - `jobs/claim` returns the next job; the agent downloads it from `jobs/[id]/file` with its bearer token.
 - `jobs/[id]` reports the result.
 
-The real Windows agent is a Rust console app in `agent/` (see `agent/README.md`): `cargo build --release`, then `scan-print-agent pair <CODE>` and `scan-print-agent run [--dry-run --include-virtual]`. It prints through the SumatraPDF CLI; tray, service/installer and auto-update are not built yet. `scripts/dev-agent.mjs` speaks the same protocol for testing.
+The real Windows agent is a Rust tray app in `agent/` (see `agent/README.md`; tao + wry + tray-icon, popups are `agent/ui/*.html`). The release exe installs itself per user and runs as a tray app; debug builds (`cargo build`) run in place against `http://localhost:3000`, and `scan-print-agent pair <CODE>` / `run [--dry-run --include-virtual]` are console commands for testing. It prints through the SumatraPDF CLI (downloaded from `public/downloads/` on first start, hash pinned in `agent/src/update.rs`). Cash orders can also be approved from the shop PC via `app/api/agent/approvals/*`. `scripts/dev-agent.mjs` speaks the same protocol for testing.
+
+**Releasing the agent:** bump `version` in `agent/Cargo.toml`, run `powershell -ExecutionPolicy Bypass -File agent/release.ps1` (builds for `https://scan-and-print.vercel.app` and writes `public/downloads/ScanAndPrintAgent.exe` + `agent.json`), then commit and deploy. Installed agents update themselves within ~6 hours.
 
 ### Auth and session
 
@@ -94,7 +96,7 @@ The real Windows agent is a Rust console app in `agent/` (see `agent/README.md`)
 
 - **Language.** The whole UI is Bangla; keep new user-facing strings (including error messages from APIs and actions) in Bangla. Payment wording is "ক্যাশ", never "নগদ" (that is a competing payment brand). Button labels like "Save" are English by user preference.
 - **Numbers.** Format via `lib/constants.ts` (`formatTaka`, `formatNumber`, `formatToken`, `formatDateTime`), which output Bangla digits.
-- **Fonts.** Poppins comes first in the font stack and has no Bangla glyphs, so Bangla falls back to Anek Bangla (`app/layout.tsx`, `--font-sans` in `globals.css`). Text sizes are bumped up site-wide in `@theme`.
+- **Fonts.** Noto Sans Bengali is the only font, for both Bangla and English (`app/layout.tsx`, `--font-sans` in `globals.css`; it is also the Bangla fallback in `--font-mono`). Text sizes are bumped up site-wide in `@theme`.
 - **Theme.** Royal blue primary with a 0.375rem radius; tokens live in `app/globals.css`. Use `IconTile` and `StatCard` (`components/`) with a `tone` prop for color.
 - **Components.** Use shadcn/ui only. The style is `base-nova`, built on **Base UI, not Radix**: use `render={<Link/>}` (plus `nativeButton={false}` for non-button elements) instead of `asChild`. `cn` comes from the `cn` package, which merges Tailwind classes.
 - **bKash branding.** `components/bkash.tsx` uses `public/images/bkash.png` (full color, so it needs a light background).

@@ -1,10 +1,14 @@
 //! The main loop: heartbeat every 30 s, poll for jobs every 3 s, survive internet outages.
+//! Used by both the console (`run`) and the tray app, which listens to [`RunnerEvent`]s.
 
 use std::{
     collections::BTreeSet,
     fs,
-    path::{Path, PathBuf},
-    process::ExitCode,
+    path::Path,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     thread,
     time::{Duration, Instant},
 };
@@ -13,6 +17,7 @@ use crate::{
     VERSION,
     api::{ApiError, Client, Job, PrinterReport},
     config::Config,
+    log::log,
     machine_name, print, printers,
 };
 
@@ -28,39 +33,73 @@ pub struct Options {
     pub include_virtual: bool,
 }
 
-struct State {
-    enabled: Option<BTreeSet<String>>,
-    pending_approvals: u32,
+#[derive(Debug, Clone)]
+pub enum RunnerEvent {
+    /// Connected. `printers` were reported, `enabled` of them are switched on in the dashboard.
+    Online { printers: usize, enabled: usize },
+    Offline,
+    /// Number of cash orders waiting for approval changed.
+    PendingApprovals(u32),
+    /// A job finished (`ok`) or failed.
+    JobFinished { token: u32, ok: bool },
 }
 
-pub fn run(cfg: Config, opts: Options) -> ExitCode {
+pub enum Exit {
+    /// Asked to stop (quit or re-pair).
+    Stopped,
+    /// The server rejected the token: the PC was removed in the dashboard.
+    Unauthorized,
+}
+
+/// Sleeps in small steps so a stop request is noticed quickly. Returns false if asked to stop.
+fn sleep(duration: Duration, stop: &AtomicBool) -> bool {
+    let until = Instant::now() + duration;
+    while Instant::now() < until {
+        if stop.load(Ordering::Relaxed) {
+            return false;
+        }
+        thread::sleep(Duration::from_millis(200).min(until - Instant::now()));
+    }
+    !stop.load(Ordering::Relaxed)
+}
+
+pub fn run(cfg: &Config, opts: &Options, stop: Arc<AtomicBool>, notify: impl Fn(RunnerEvent)) -> Exit {
     let client = Client::new(&cfg.server, Some(cfg.token.clone()));
     let work_dir = std::env::temp_dir().join("ScanAndPrint");
     clear_dir(&work_dir);
 
     log(&format!("Scan & Print agent {VERSION} connected to {}", cfg.server));
-    let sumatra = print::find_sumatra();
-    match (&sumatra, opts.dry_run) {
+    match (print::find_sumatra(), opts.dry_run) {
         (_, true) => log("Dry run: jobs are downloaded and marked completed without printing."),
         (Some(path), false) => log(&format!("Printing with {}", path.display())),
-        (None, false) => log("WARNING: SumatraPDF.exe not found. Put it next to the agent or set SCAN_PRINT_SUMATRA; jobs will fail until then."),
+        (None, false) => log("SumatraPDF.exe not found yet; jobs will fail until it is next to the agent."),
     }
 
-    let mut state = State { enabled: None, pending_approvals: 0 };
+    let mut enabled: Option<BTreeSet<String>> = None;
+    let mut pending_approvals: Option<u32> = None;
     let mut last_heartbeat: Option<Instant> = None;
     let mut backoff = MIN_BACKOFF;
     let mut offline_since: Option<Instant> = None;
-    log("Waiting for jobs (Ctrl+C to stop)");
+    log("Waiting for jobs");
 
     loop {
+        if stop.load(Ordering::Relaxed) {
+            return Exit::Stopped;
+        }
         let result = (|| -> Result<bool, ApiError> {
             if last_heartbeat.is_none_or(|t| t.elapsed() >= HEARTBEAT_EVERY) {
-                heartbeat(&client, &opts, &mut state)?;
+                heartbeat(&client, opts, &mut enabled, &notify)?;
                 last_heartbeat = Some(Instant::now());
             }
-            match client.claim()? {
+            let claim = client.claim()?;
+            if pending_approvals != Some(claim.pending_approvals) {
+                pending_approvals = Some(claim.pending_approvals);
+                notify(RunnerEvent::PendingApprovals(claim.pending_approvals));
+            }
+            match claim.job {
                 Some(job) => {
-                    process_job(&client, &job, &work_dir, sumatra.as_deref(), opts.dry_run);
+                    let ok = process_job(&client, &job, &work_dir, opts.dry_run);
+                    notify(RunnerEvent::JobFinished { token: job.token, ok });
                     Ok(true)
                 }
                 None => Ok(false),
@@ -73,29 +112,38 @@ pub fn run(cfg: Config, opts: Options) -> ExitCode {
                     log(&format!("Reconnected after {}s", since.elapsed().as_secs()));
                 }
                 backoff = MIN_BACKOFF;
-                if !had_job {
-                    thread::sleep(POLL_EVERY);
+                if !had_job && !sleep(POLL_EVERY, &stop) {
+                    return Exit::Stopped;
                 }
             }
             Err(ApiError::Unauthorized) => {
-                log("The server no longer accepts this PC (it was removed in the dashboard). Pair again with: scan-print-agent pair <CODE>");
-                return ExitCode::from(3);
+                log("The server no longer accepts this PC (it was removed in the dashboard). Pair again.");
+                return Exit::Unauthorized;
             }
             Err(e) => {
                 if offline_since.is_none() {
                     offline_since = Some(Instant::now());
                     log(&format!("Cannot reach the server ({e}). Retrying..."));
+                    notify(RunnerEvent::Offline);
                 }
-                // Send a fresh heartbeat as soon as we are back online.
+                // Send a fresh heartbeat (and Online event) as soon as we are back.
                 last_heartbeat = None;
-                thread::sleep(backoff);
+                enabled = None;
+                if !sleep(backoff, &stop) {
+                    return Exit::Stopped;
+                }
                 backoff = (backoff * 2).min(MAX_BACKOFF);
             }
         }
     }
 }
 
-fn heartbeat(client: &Client, opts: &Options, state: &mut State) -> Result<(), ApiError> {
+fn heartbeat(
+    client: &Client,
+    opts: &Options,
+    last_enabled: &mut Option<BTreeSet<String>>,
+    notify: &impl Fn(RunnerEvent),
+) -> Result<(), ApiError> {
     let list = printers::list().unwrap_or_else(|e| {
         log(&format!("Could not list printers: {e}"));
         Vec::new()
@@ -109,22 +157,20 @@ fn heartbeat(client: &Client, opts: &Options, state: &mut State) -> Result<(), A
     let response = client.heartbeat(&machine_name(), VERSION, &reports)?;
 
     let enabled: BTreeSet<String> = response.devices.into_iter().filter(|d| d.enabled).map(|d| d.system_name).collect();
-    if state.enabled.as_ref() != Some(&enabled) {
+    if last_enabled.as_ref() != Some(&enabled) {
         if enabled.is_empty() {
             log(&format!("{} printer(s) reported. None enabled yet: enable them in Dashboard -> Devices.", reports.len()));
         } else {
             log(&format!("Printing on: {}", enabled.iter().cloned().collect::<Vec<_>>().join(", ")));
         }
-        state.enabled = Some(enabled);
+        notify(RunnerEvent::Online { printers: reports.len(), enabled: enabled.len() });
+        *last_enabled = Some(enabled);
     }
-    if response.pending_approvals > state.pending_approvals {
-        log(&format!("{} cash order(s) waiting for approval in the dashboard", response.pending_approvals));
-    }
-    state.pending_approvals = response.pending_approvals;
     Ok(())
 }
 
-fn process_job(client: &Client, job: &Job, work_dir: &Path, sumatra: Option<&Path>, dry_run: bool) {
+/// Downloads, prints and reports one job. Returns whether it printed.
+fn process_job(client: &Client, job: &Job, work_dir: &Path, dry_run: bool) -> bool {
     log(&format!(
         "Job #{}: {} page(s) x {} cop{} ({}) -> {}",
         job.token,
@@ -150,10 +196,11 @@ fn process_job(client: &Client, job: &Job, work_dir: &Path, sumatra: Option<&Pat
                 thread::sleep(Duration::from_secs(2));
                 return Ok(());
             }
-            let Some(sumatra) = sumatra else {
-                return Err("শপের কম্পিউটারে প্রিন্ট সফটওয়্যার (SumatraPDF) পাওয়া যায়নি".to_string());
+            // Looked up per job: the tray app may download it after start-up.
+            let Some(sumatra) = print::find_sumatra() else {
+                return Err("দোকানের কম্পিউটারে প্রিন্ট সফটওয়্যার (SumatraPDF) পাওয়া যায়নি".to_string());
             };
-            print::print_pdf(sumatra, &file, &job.printer, job.color_mode == "color", job.copies)
+            print::print_pdf(&sumatra, &file, &job.printer, job.color_mode == "color", job.copies)
         });
 
     // Customer documents never stay on the shop PC.
@@ -163,7 +210,9 @@ fn process_job(client: &Client, job: &Job, work_dir: &Path, sumatra: Option<&Pat
         Ok(()) => log(if dry_run { "  done (dry run, not printed)" } else { "  sent to printer" }),
         Err(_) => log("  failed; reported to the dashboard"),
     }
+    let ok = outcome.is_ok();
     report_with_retry(client, &job.id, outcome.err().as_deref());
+    ok
 }
 
 /// The job stays "printing" on the server until we report, so keep trying through short outages.
@@ -191,20 +240,10 @@ fn safe_name(id: &str) -> String {
 }
 
 /// Deletes PDFs left behind by a crash or power cut.
-fn clear_dir(dir: &PathBuf) {
+fn clear_dir(dir: &Path) {
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
             let _ = fs::remove_file(entry.path());
         }
     }
-}
-
-fn log(message: &str) {
-    println!("[{}] {message}", clock());
-}
-
-/// Local wall-clock time as HH:MM:SS.
-fn clock() -> String {
-    let t = unsafe { windows::Win32::System::SystemInformation::GetLocalTime() };
-    format!("{:02}:{:02}:{:02}", t.wHour, t.wMinute, t.wSecond)
 }

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<style>/*STYLE*/</style>
+</head>
+<body>
+<header class="brand">
+  <!--LOGO-->
+  <div>
+    <div class="brand-name">Scan &amp; Print</div>
+    <div class="brand-sub">প্রিন্ট এজেন্ট</div>
+  </div>
+</header>
+
+<main id="form-view">
+  <h1>দোকানের সাথে যুক্ত করুন</h1>
+  <p class="lead">একবার যুক্ত করলেই অর্ডারগুলো এই কম্পিউটারের প্রিন্টারে নিজে থেকে প্রিন্ট হবে।</p>
+  <ol class="steps">
+    <li><span class="num">১</span><span>ড্যাশবোর্ডে <b>ডিভাইস</b> পেজ খুলুন</span></li>
+    <li><span class="num">২</span><span><b>কম্পিউটার যুক্ত করুন</b> বাটনে চাপুন</span></li>
+    <li><span class="num">৩</span><span>দেখানো কোডটি নিচে লিখুন</span></li>
+  </ol>
+  <form id="form">
+    <label for="code">পেয়ারিং কোড</label>
+    <input id="code" maxlength="16" autocomplete="off" spellcheck="false" autofocus placeholder="ABCD1234">
+  </form>
+  <div id="error" class="alert"></div>
+  <div class="row" style="margin-top:auto">
+    <button type="button" id="dashboard">ড্যাশবোর্ড খুলুন</button>
+    <button type="submit" form="form" id="submit" class="primary">যুক্ত করুন</button>
+  </div>
+</main>
+
+<main id="done-view" class="hidden">
+  <div class="state">
+    <div class="icon">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+    </div>
+    <h1>যুক্ত হয়েছে!</h1>
+    <p id="shop"></p>
+    <p>এখন ড্যাশবোর্ডের <b>ডিভাইস</b> পেজে এই কম্পিউটারের প্রিন্টারগুলো চালু করুন। এজেন্টটি টাস্কবারের কোণে (ট্রে) চলতে থাকবে।</p>
+  </div>
+  <div class="row">
+    <button type="button" id="done-dashboard" class="primary">ড্যাশবোর্ড খুলুন</button>
+    <button type="button" id="close">বন্ধ করুন</button>
+  </div>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id)
+  const send = (msg) => window.ipc && window.ipc.postMessage(JSON.stringify(msg))
+  const submitLabel = $("submit").innerHTML
+  document.addEventListener("contextmenu", (e) => e.preventDefault())
+
+  function busy(on) {
+    $("submit").disabled = on
+    $("code").disabled = on
+    $("submit").innerHTML = on ? '<span class="spinner"></span> যুক্ত করা হচ্ছে…' : submitLabel
+  }
+  function showError(text) {
+    $("error").textContent = text
+    $("code").classList.toggle("invalid", Boolean(text))
+  }
+
+  $("code").addEventListener("input", () => showError(""))
+  $("form").addEventListener("submit", (event) => {
+    event.preventDefault()
+    const code = $("code").value.trim().toUpperCase()
+    if (code.length < 4) {
+      showError("ড্যাশবোর্ডে দেখানো কোডটি লিখুন")
+      $("code").focus()
+      return
+    }
+    showError("")
+    busy(true)
+    send({ type: "pair", code })
+  })
+  $("dashboard").addEventListener("click", () => send({ type: "openDashboard" }))
+  $("done-dashboard").addEventListener("click", () => send({ type: "openDashboard" }))
+  $("close").addEventListener("click", () => send({ type: "close" }))
+
+  // Called from Rust with the pairing result.
+  window.pairResult = (ok, text, shopName) => {
+    busy(false)
+    if (!ok) {
+      showError(text)
+      $("code").focus()
+      $("code").select()
+      return
+    }
+    $("shop").textContent = shopName ? `দোকান: ${shopName}` : ""
+    $("form-view").classList.add("hidden")
+    $("done-view").classList.remove("hidden")
+  }
+  send({ type: "ready" })
+</script>
+</body>
+</html>

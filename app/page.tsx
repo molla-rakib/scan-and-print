@@ -3,30 +3,26 @@ import { Suspense } from "react"
 import {
   ArrowRightIcon,
   BanknoteIcon,
+  BellRingIcon,
   CheckIcon,
   CpuIcon,
   FileTextIcon,
-  FileUpIcon,
-  ListOrderedIcon,
+  MessageCircleIcon,
   MonitorIcon,
   PrinterIcon,
-  QrCodeIcon,
-  RouteIcon,
   ShieldCheckIcon,
-  SmartphoneIcon,
-  WalletIcon,
+  Trash2Icon,
+  UsbIcon,
   WifiIcon,
 } from "lucide-react"
 import { BkashLogo } from "@/components/bkash"
 import { Logo } from "@/components/logo"
 import { HeaderActions, SignedInHeaderActions } from "./header-actions"
-import { IconTile, type Tone } from "@/components/icon-tile"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatNumber, formatTaka } from "@/lib/constants"
 import { env } from "@/lib/env"
+import { cn } from "@/lib/utils"
 
 const nav = [
   { href: "#how-it-works", label: "কীভাবে কাজ করে" },
@@ -35,57 +31,44 @@ const nav = [
   { href: "#faq", label: "প্রশ্নোত্তর" },
 ]
 
+// The four CMYK inks, used as the page's accent system.
+const inks = ["bg-cyan-500", "bg-pink-500", "bg-yellow-400", "bg-foreground"]
+
 const steps = [
-  { icon: QrCodeIcon, title: "QR কোড স্ক্যান", text: "গ্রাহক কাউন্টারে রাখা QR কোড ফোনের ক্যামেরায় স্ক্যান করে।" },
-  { icon: FileUpIcon, title: "PDF আপলোড", text: "ফাইল আপলোড করে সাদা-কালো বা রঙিন আর কপি সংখ্যা বেছে নেয়।" },
-  { icon: WalletIcon, title: "পেমেন্ট", text: "বিকাশে পেমেন্ট করে, অথবা কাউন্টারে ক্যাশ দেয়।" },
-  { icon: PrinterIcon, title: "স্বয়ংক্রিয় প্রিন্ট", text: "সঠিক প্রিন্টারে প্রিন্ট শুরু হয়। গ্রাহক টোকেন দেখিয়ে কাগজ নেয়।" },
+  { title: "QR স্ক্যান", text: "কাউন্টারে লাগানো পোস্টারের QR কোড গ্রাহক নিজের ফোনে স্ক্যান করে।", ink: "text-cyan-600" },
+  { title: "PDF আপলোড", text: "ফাইল দেয়, সাদা-কালো না রঙিন আর কয় কপি লাগবে তা বেছে নেয়।", ink: "text-pink-600" },
+  { title: "পেমেন্ট", text: "বিকাশে টাকা দেয়, নয়তো কাউন্টারে ক্যাশ দেয়।", ink: "text-yellow-600" },
+  { title: "প্রিন্ট!", text: "ঠিক মেশিনে নিজে থেকে প্রিন্ট হয়। গ্রাহক টোকেন দেখিয়ে কাগজ নিয়ে যায়।", ink: "text-foreground" },
 ]
 
-const features = [
-  {
-    icon: RouteIcon,
-    tone: "blue" as Tone,
-    title: "সঠিক মেশিন নিজে বেছে নেয়",
-    text: "রঙিন অর্ডার যায় রঙিন প্রিন্টারে, সাদা-কালো যায় কম খরচের মেশিনে। কোন মেশিন ফাঁকা, সেটাও দেখে নেয়।",
-  },
-  {
-    icon: WalletIcon,
-    tone: "rose" as Tone,
-    title: "আপনার নিজের বিকাশ মার্চেন্ট",
-    text: "গ্রাহকের টাকা সরাসরি আপনার বিকাশ মার্চেন্ট অ্যাকাউন্টে জমা হয়। আমরা আপনার টাকা ধরি না।",
-  },
-  {
-    icon: BanknoteIcon,
-    tone: "amber" as Tone,
-    title: "ক্যাশ পেমেন্টের অপশন",
-    text: "ক্যাশ অর্ডার আসলে সাউন্ড অ্যালার্ট বাজে। টাকা নিয়ে এক ক্লিকে অনুমোদন দিলেই প্রিন্ট শুরু।",
-  },
-  {
-    icon: ListOrderedIcon,
-    tone: "violet" as Tone,
-    title: "লাইভ লাইন ও টোকেন",
-    text: "গ্রাহক ফোনেই দেখে তার আগে কয়টা অর্ডার আছে। ভিড়ের সময় কাউন্টারে হৈচৈ কমে যায়।",
-  },
-  {
-    icon: PrinterIcon,
-    tone: "emerald" as Tone,
-    title: "যেকোনো প্রিন্টার ও ফটোকপি মেশিন",
-    text: "HP, Canon, Epson, Brother, Ricoh, Konica — Windows-এ যে মেশিন থেকে প্রিন্ট হয়, সেটাই কাজ করবে।",
-  },
-  {
-    icon: ShieldCheckIcon,
-    tone: "sky" as Tone,
-    title: "গ্রাহকের ফাইল নিরাপদ",
-    text: "NID, সার্টিফিকেটের মতো ব্যক্তিগত ফাইল প্রিন্টের পরপরই স্বয়ংক্রিয়ভাবে মুছে ফেলা হয়।",
-  },
+const ticker = [
+  "টোকেন #২৭ · assignment.pdf · ১২ পৃষ্ঠা · সাদা-কালো",
+  "টোকেন #২৮ · CV-final.pdf · ২ পৃষ্ঠা · রঙিন",
+  "টোকেন #২৯ · NID-copy.pdf · ১ পৃষ্ঠা · ৩ কপি",
+  "টোকেন #৩০ · thesis-ch3.pdf · ৪৮ পৃষ্ঠা · সাদা-কালো",
+  "টোকেন #৩১ · admit-card.pdf · ১ পৃষ্ঠা · রঙিন",
+  "টোকেন #৩২ · lab-report.pdf · ৯ পৃষ্ঠা · ২ কপি",
+]
+
+const before = [
+  { icon: UsbIcon, text: "পেনড্রাইভে ভাইরাস, ফাইল খুঁজতে খুঁজতে লাইন লম্বা" },
+  { icon: MessageCircleIcon, text: "হোয়াটসঅ্যাপে শত শত ফাইল, কারটা কোনটা বোঝা দায়" },
+  { icon: BanknoteIcon, text: "খুচরা টাকার হিসাব মেলে না দিনের শেষে" },
+  { icon: FileTextIcon, text: "গ্রাহকের NID, সার্টিফিকেট পড়ে থাকে আপনার কম্পিউটারে" },
+]
+
+const after = [
+  "গ্রাহক নিজেই ফাইল পাঠায়, নিজেই পেমেন্ট করে",
+  "প্রতিটা অর্ডারের আলাদা টোকেন নম্বর",
+  "প্রতিটা টাকার হিসাব ড্যাশবোর্ডে",
+  "প্রিন্টের পরপরই ফাইল নিজে থেকে মুছে যায়",
 ]
 
 const requirements = [
-  { icon: MonitorIcon, title: "একটি Windows কম্পিউটার", text: "যেটা দোকান খোলা থাকাকালীন চালু থাকে।" },
-  { icon: PrinterIcon, title: "ইনস্টল করা প্রিন্টার", text: "কম্পিউটার থেকে Word ফাইল প্রিন্ট হলেই যথেষ্ট।" },
-  { icon: WifiIcon, title: "ইন্টারনেট সংযোগ", text: "সাধারণ ব্রডব্যান্ড বা মোবাইল ডেটাই যথেষ্ট।" },
-  { icon: CpuIcon, title: "আমাদের প্রিন্ট এজেন্ট", text: "একবার ইনস্টল করে কোড দিলেই হয়ে গেল।" },
+  { icon: MonitorIcon, title: "একটি Windows কম্পিউটার", text: "দোকান খোলা থাকলে চালু থাকে এমন" },
+  { icon: PrinterIcon, title: "ইনস্টল করা প্রিন্টার", text: "Word থেকে প্রিন্ট হলেই চলবে" },
+  { icon: WifiIcon, title: "ইন্টারনেট", text: "ব্রডব্যান্ড বা মোবাইল ডেটা" },
+  { icon: CpuIcon, title: "আমাদের প্রিন্ট এজেন্ট", text: "একবার ইনস্টল, একটা কোড, ব্যাস" },
 ]
 
 const faqs = [
@@ -116,9 +99,9 @@ export default function HomePage() {
   const trialDays = env.trialDays
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex flex-1 flex-col bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur-md">
+      <header className="sticky top-0 z-40 border-b border-foreground/10 bg-[oklch(0.985_0.008_85)]/85 backdrop-blur-md">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4 md:px-6">
           <Link href="/">
             <Logo />
@@ -138,186 +121,345 @@ export default function HomePage() {
 
       <main className="flex-1">
         {/* Hero */}
-        <section className="relative overflow-hidden">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 bg-linear-to-b from-primary/6 via-transparent to-transparent"
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -top-40 left-1/2 size-[700px] -translate-x-1/2 rounded-full bg-primary/15 blur-3xl"
-          />
-          <div className="relative mx-auto grid max-w-6xl items-center gap-14 px-4 py-16 md:px-6 md:py-24 lg:grid-cols-[1.1fr_0.9fr]">
-            <div className="flex flex-col items-start gap-6">
-              <Badge variant="outline" className="h-7 gap-2 bg-background px-3 text-sm font-normal">
-                <span className="size-2 rounded-full bg-emerald-500" />
-                বাংলাদেশের প্রিন্ট ও ফটোকপি দোকানের জন্য
-              </Badge>
-              <h1 className="text-4xl leading-[1.2] font-bold tracking-tight text-balance sm:text-5xl lg:text-6xl lg:leading-[1.15]">
-                প্রিন্টের দোকান চলুক <span className="bg-linear-to-r from-primary to-violet-600 bg-clip-text text-transparent">স্বয়ংক্রিয়ভাবে</span>
+        <section className="bg-paper relative overflow-hidden border-b border-foreground/10">
+          <RegistrationMark className="absolute top-6 left-6 hidden md:block" />
+          <RegistrationMark className="absolute top-6 right-6 hidden md:block" />
+          <div className="relative mx-auto grid max-w-6xl items-center gap-16 px-4 pt-14 pb-20 md:px-6 md:pt-20 lg:grid-cols-[1.15fr_0.85fr]">
+            <div className="flex flex-col items-start gap-7">
+              <span className="inline-flex items-center gap-3 rounded-full border border-foreground/15 bg-background px-3 py-1 text-sm">
+                <span className="flex gap-1">
+                  {inks.map((ink) => (
+                    <span key={ink} className={cn("size-2.5 rounded-full", ink)} />
+                  ))}
+                </span>
+                প্রিন্ট ও ফটোকপি দোকানের জন্য
+              </span>
+              <h1 className="text-[2.6rem] leading-[1.15] font-extrabold tracking-tight text-balance sm:text-6xl lg:text-7xl lg:leading-[1.08]">
+                পেনড্রাইভ নয়,
+                <br />
+                <span className="marker px-1">QR কোড</span> দিয়েই প্রিন্ট।
               </h1>
-              <p className="max-w-xl text-lg leading-relaxed text-pretty text-muted-foreground">
-                গ্রাহক QR কোড স্ক্যান করে PDF আপলোড করবে, বিকাশে পেমেন্ট করবে — আর প্রিন্ট নিজে নিজেই শুরু হবে সঠিক মেশিনে। পেনড্রাইভ,
-                ইমেইল বা হোয়াটসঅ্যাপে ফাইল নেওয়ার ঝামেলা শেষ।
+              <p className="max-w-xl text-lg leading-relaxed text-pretty text-foreground/70">
+                গ্রাহক QR স্ক্যান করে PDF পাঠায়, বিকাশে টাকা দেয় — আর আপনার দোকানের প্রিন্টার নিজে থেকেই ছাপা শুরু করে। আপনি শুধু কাগজটা
+                হাতে তুলে দেন।
               </p>
-              <div className="flex flex-wrap gap-3">
-                <Button size="lg" className="h-12 px-6 text-base" render={<Link href="/login" />} nativeButton={false}>
-                  {formatNumber(trialDays)} দিন ফ্রি ব্যবহার করুন <ArrowRightIcon />
+              <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+                <Button
+                  size="lg"
+                  className="h-13 px-7 text-base shadow-[4px_4px_0_0_var(--foreground)] transition-all hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0_0_var(--foreground)]"
+                  render={<Link href="/login" />}
+                  nativeButton={false}
+                >
+                  {formatNumber(trialDays)} দিন ফ্রি চালিয়ে দেখুন <ArrowRightIcon />
                 </Button>
                 <Button
                   size="lg"
                   variant="outline"
-                  className="h-12 bg-background px-6 text-base"
+                  className="h-13 border-foreground/20 bg-background px-7 text-base"
                   render={<a href="#how-it-works" />}
                   nativeButton={false}
                 >
                   কীভাবে কাজ করে
                 </Button>
               </div>
-              <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
-                {["কোনো সেটআপ ফি নেই", "নিজের বিকাশ মার্চেন্ট", "যেকোনো প্রিন্টার"].map((item) => (
-                  <li key={item} className="flex items-center gap-1.5">
-                    <CheckIcon className="size-4 text-emerald-600" /> {item}
+              <dl className="grid w-full max-w-lg grid-cols-3 divide-x divide-foreground/10 border-y border-foreground/10 py-4">
+                {[
+                  { value: "৩০ সে.", label: "অর্ডার দিতে সময়" },
+                  { value: "০%", label: "অর্ডারে কমিশন" },
+                  { value: "২৪ ঘ.", label: "সর্বোচ্চ ফাইল রাখা" },
+                ].map((stat) => (
+                  <div key={stat.label} className="flex flex-col gap-0.5 px-3 first:pl-0">
+                    <dt className="order-2 text-xs text-muted-foreground">{stat.label}</dt>
+                    <dd className="order-1 text-2xl font-bold tracking-tight">{stat.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+            <PrinterScene />
+          </div>
+        </section>
+
+        {/* Live queue ticker */}
+        <div className="overflow-hidden border-b bg-foreground py-3 text-background" aria-hidden>
+          <div className="animate-ticker flex w-max gap-10 font-mono text-sm whitespace-nowrap">
+            {[...ticker, ...ticker].map((item, i) => (
+              <span key={i} className="flex items-center gap-10">
+                <span className="flex items-center gap-2">
+                  <span className={cn("size-2 rounded-full", inks[i % 3])} />
+                  {item}
+                </span>
+                <span className="text-background/30">✦</span>
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Before / after */}
+        <section className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
+          <SectionHeading
+            eyebrow="আপনার কাউন্টারে প্রতিদিন"
+            title="ভিড়ের সময়ের সেই হট্টগোল, এবার শেষ"
+          />
+          <div className="mt-14 grid gap-6 md:grid-cols-2">
+            <div className="relative rounded-2xl border border-dashed border-foreground/25 bg-muted/40 p-6 md:-rotate-1 md:p-8">
+              <span className="absolute -top-3 left-6 rounded-full bg-background px-3 text-sm font-semibold text-muted-foreground">
+                আগে
+              </span>
+              <ul className="flex flex-col gap-5">
+                {before.map((item) => (
+                  <li key={item.text} className="flex items-start gap-3 text-foreground/70">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground">
+                      <item.icon className="size-4" />
+                    </span>
+                    <span className="pt-1.5 decoration-rose-500/60 decoration-2 md:line-through">{item.text}</span>
                   </li>
                 ))}
               </ul>
             </div>
-            <HeroMockup />
-          </div>
-        </section>
-
-        {/* Stats */}
-        <section className="border-y bg-muted/30">
-          <div className="mx-auto grid max-w-6xl grid-cols-2 gap-6 px-4 py-10 md:grid-cols-4 md:px-6">
-            {[
-              { value: "৩০ সেকেন্ড", label: "গ্রাহকের অর্ডার দিতে লাগে" },
-              { value: "০", label: "ফাইল আদান-প্রদানের ঝামেলা" },
-              { value: "১০০%", label: "পেমেন্ট সরাসরি আপনার অ্যাকাউন্টে" },
-              { value: "২৪ ঘণ্টা", label: "সর্বোচ্চ ফাইল সংরক্ষণ" },
-            ].map((stat) => (
-              <div key={stat.label} className="flex flex-col gap-1 text-center">
-                <span className="text-2xl font-bold tracking-tight md:text-3xl">{stat.value}</span>
-                <span className="text-sm text-muted-foreground">{stat.label}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* How it works */}
-        <section id="how-it-works" className="scroll-mt-16">
-          <div className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
-            <SectionHeading eyebrow="কীভাবে কাজ করে" title="চারটি ধাপে প্রিন্ট — দোকানদারের কোনো হাত লাগে না" />
-            <ol className="relative mt-14 grid gap-8 md:grid-cols-4">
-              <div aria-hidden className="absolute top-6 right-[12.5%] left-[12.5%] hidden h-px bg-border md:block" />
-              {steps.map((step, i) => (
-                <li key={step.title} className="relative flex flex-col items-center gap-3 text-center">
-                  <span className="relative flex size-12 items-center justify-center rounded-full border bg-background shadow-sm">
-                    <step.icon className="size-5" />
-                    <span className="absolute -top-1 -right-1 flex size-5 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
-                      {formatNumber(i + 1)}
+            <div className="relative rounded-2xl bg-primary p-6 text-primary-foreground shadow-[6px_6px_0_0_var(--foreground)] md:rotate-1 md:p-8">
+              <span className="absolute -top-3 left-6 rounded-full bg-yellow-300 px-3 text-sm font-semibold text-foreground">
+                এখন
+              </span>
+              <ul className="flex flex-col gap-5">
+                {after.map((text) => (
+                  <li key={text} className="flex items-start gap-3">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white/15">
+                      <CheckIcon className="size-4" />
                     </span>
+                    <span className="pt-1.5 font-medium">{text}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        {/* How it works: tear-off tickets */}
+        <section id="how-it-works" className="bg-paper scroll-mt-16 border-y border-foreground/10">
+          <div className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
+            <SectionHeading eyebrow="কীভাবে কাজ করে" title="চার ধাপ। দোকানদারের হাত লাগে না একবারও।" />
+            <ol className="mt-14 grid overflow-hidden rounded-2xl border border-foreground/15 bg-background md:grid-cols-4">
+              {steps.map((step, i) => (
+                <li
+                  key={step.title}
+                  className="relative flex flex-col gap-3 border-dashed border-foreground/25 p-6 not-last:border-b md:p-7 md:not-last:border-r md:not-last:border-b-0"
+                >
+                  <span className={cn("font-mono text-6xl leading-none font-bold tracking-tighter", step.ink)}>
+                    {formatNumber(i + 1).padStart(2, "০")}
                   </span>
-                  <h3 className="font-semibold">{step.title}</h3>
-                  <p className="max-w-56 text-sm text-muted-foreground">{step.text}</p>
+                  <h3 className="text-xl font-bold">{step.title}</h3>
+                  <p className="text-sm leading-relaxed text-muted-foreground">{step.text}</p>
+                  {i < steps.length - 1 && (
+                    <span className="absolute -right-3 -bottom-3 z-10 hidden size-6 rounded-full border border-foreground/15 bg-[oklch(0.985_0.008_85)] md:-top-3 md:bottom-auto md:block" />
+                  )}
+                  {i < steps.length - 1 && (
+                    <span className="absolute -right-3 -bottom-3 z-10 hidden size-6 rounded-full border border-foreground/15 bg-[oklch(0.985_0.008_85)] md:block" />
+                  )}
                 </li>
               ))}
             </ol>
           </div>
         </section>
 
-        {/* Features */}
-        <section id="features" className="scroll-mt-16 border-y bg-muted/30">
+        {/* Features bento */}
+        <section id="features" className="scroll-mt-16">
           <div className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
-            <SectionHeading eyebrow="দোকান মালিকের জন্য সুবিধা" title="কম ঝামেলা, বেশি গ্রাহক, পরিষ্কার হিসাব" />
-            <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {features.map((feature) => (
-                <Card key={feature.title} className="transition-shadow hover:shadow-md">
-                  <CardHeader>
-                    <IconTile icon={feature.icon} tone={feature.tone} className="mb-3 size-10 rounded-lg" />
-                    <CardTitle className="text-base">{feature.title}</CardTitle>
-                    <CardDescription className="leading-relaxed">{feature.text}</CardDescription>
-                  </CardHeader>
-                </Card>
-              ))}
+            <SectionHeading eyebrow="দোকান মালিকের সুবিধা" title="কম ঝামেলা, বেশি গ্রাহক, পরিষ্কার হিসাব" />
+            <div className="mt-14 grid gap-4 lg:grid-cols-6">
+              {/* Routing */}
+              <BentoCard className="relative overflow-hidden bg-foreground text-background lg:col-span-4">
+                <div aria-hidden className="bg-halftone pointer-events-none absolute inset-0 text-background/15" />
+                <div className="relative grid gap-8 sm:grid-cols-2 sm:items-center">
+                  <div className="flex flex-col gap-3">
+                    <h3 className="text-2xl font-bold">ঠিক মেশিন নিজেই বেছে নেয়</h3>
+                    <p className="leading-relaxed text-background/65">
+                      রঙিন অর্ডার যায় রঙিন প্রিন্টারে, সাদা-কালো যায় কম খরচের মেশিনে। কোন মেশিন ফাঁকা আছে, কোনটা বন্ধ — সব দেখে নেয়।
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-3 font-mono text-sm" aria-hidden>
+                    <RouteRow from="সাদা-কালো · ১২ পৃ." to="Canon iR 2520" dot="bg-background" />
+                    <RouteRow from="রঙিন · ২ পৃ." to="Epson L3250" dot="bg-pink-500" />
+                    <RouteRow from="সাদা-কালো · ৪৮ পৃ." to="HP LaserJet" dot="bg-background" />
+                  </div>
+                </div>
+              </BentoCard>
+
+              {/* bKash */}
+              <BentoCard className="flex flex-col justify-between gap-6 bg-[#E2136E] text-white lg:col-span-2">
+                <BkashLogo className="self-start px-2 py-1 [&_img]:h-6" />
+                <div className="flex flex-col gap-2">
+                  <h3 className="text-xl font-bold">টাকা আসে সরাসরি আপনার কাছে</h3>
+                  <p className="text-sm leading-relaxed text-white/80">
+                    আপনার নিজের বিকাশ মার্চেন্ট অ্যাকাউন্টে। মাঝখানে আমরা নেই।
+                  </p>
+                </div>
+              </BentoCard>
+
+              {/* Cash alert */}
+              <BentoCard className="flex flex-col gap-4 bg-yellow-300 text-foreground lg:col-span-2">
+                <span className="flex size-11 items-center justify-center rounded-full bg-foreground text-yellow-300">
+                  <BellRingIcon className="size-5" />
+                </span>
+                <h3 className="text-xl font-bold">ক্যাশ অর্ডারে টুং করে শব্দ</h3>
+                <p className="text-sm leading-relaxed text-foreground/75">
+                  টাকা হাতে নিয়ে এক ক্লিকে অনুমোদন — প্রিন্ট শুরু। দোকানের কম্পিউটার থেকেও অনুমোদন দেওয়া যায়।
+                </p>
+              </BentoCard>
+
+              {/* Live queue */}
+              <BentoCard className="flex flex-col gap-4 border border-foreground/15 lg:col-span-2">
+                <h3 className="text-xl font-bold">গ্রাহক ফোনেই দেখে লাইন</h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  আগে কয়টা অর্ডার আছে, প্রিন্ট শুরু হলো কিনা — সব লাইভ। কাউন্টারে বারবার জিজ্ঞেস করা বন্ধ।
+                </p>
+                <div className="mt-auto flex flex-col gap-1.5 font-mono text-sm" aria-hidden>
+                  {[
+                    { t: "#২৭", s: "প্রিন্ট হচ্ছে", c: "bg-cyan-500" },
+                    { t: "#২৮", s: "লাইনে · ১ম", c: "bg-yellow-400" },
+                    { t: "#২৯", s: "লাইনে · ২য়", c: "bg-muted-foreground/40" },
+                  ].map((row) => (
+                    <div key={row.t} className="flex items-center gap-2 rounded-md bg-muted px-3 py-1.5">
+                      <span className={cn("size-2 rounded-full", row.c)} />
+                      <span className="font-semibold">{row.t}</span>
+                      <span className="ml-auto text-muted-foreground">{row.s}</span>
+                    </div>
+                  ))}
+                </div>
+              </BentoCard>
+
+              {/* Any printer */}
+              <BentoCard className="flex flex-col gap-4 border border-foreground/15 lg:col-span-2">
+                <h3 className="text-xl font-bold">যেকোনো প্রিন্টার, যেকোনো ফটোকপি মেশিন</h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">Windows থেকে প্রিন্ট নিলেই হলো।</p>
+                <div className="mt-auto flex flex-wrap gap-2" aria-hidden>
+                  {["HP", "Canon", "Epson", "Brother", "Ricoh", "Konica", "Xerox"].map((brand) => (
+                    <span key={brand} className="rounded-full border border-foreground/15 px-3 py-1 text-sm font-semibold">
+                      {brand}
+                    </span>
+                  ))}
+                </div>
+              </BentoCard>
+
+              {/* Privacy */}
+              <BentoCard className="flex flex-col gap-6 border border-foreground/15 bg-cyan-50 sm:flex-row sm:items-center lg:col-span-6">
+                <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-cyan-500 text-white">
+                  <ShieldCheckIcon className="size-7" />
+                </span>
+                <div className="flex flex-col gap-1">
+                  <h3 className="text-xl font-bold">গ্রাহকের ফাইল থাকে না আপনার কম্পিউটারে</h3>
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    NID, সার্টিফিকেট, ব্যাংক স্টেটমেন্ট — প্রিন্ট শেষ হওয়ামাত্র ফাইল নিজে থেকে মুছে যায়। গ্রাহক নিশ্চিন্তে পাঠাতে পারে।
+                  </p>
+                </div>
+                <span className="flex shrink-0 items-center gap-2 self-start rounded-full bg-background px-4 py-2 font-mono text-sm whitespace-nowrap sm:ml-auto sm:self-center">
+                  <Trash2Icon className="size-4 text-rose-500" /> NID-copy.pdf মুছে ফেলা হয়েছে
+                </span>
+              </BentoCard>
             </div>
           </div>
         </section>
 
         {/* Requirements */}
-        <section>
-          <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-20 md:px-6 md:py-28 lg:grid-cols-2">
+        <section className="border-y border-foreground/10 bg-muted/40">
+          <div className="mx-auto grid max-w-6xl gap-12 px-4 py-20 md:px-6 md:py-24 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
             <div className="flex flex-col gap-4">
-              <span className="text-sm font-medium text-primary">শুরু করতে যা লাগবে</span>
-              <h2 className="text-3xl leading-tight font-bold tracking-tight text-balance md:text-4xl">
+              <Eyebrow>শুরু করতে যা লাগবে</Eyebrow>
+              <h2 className="text-3xl leading-tight font-extrabold tracking-tight text-balance md:text-5xl">
                 নতুন কোনো মেশিন কিনতে হবে না
               </h2>
               <p className="text-lg leading-relaxed text-muted-foreground">
-                আপনার দোকানে এখন যা আছে, তা দিয়েই শুরু করুন। প্রিন্ট এজেন্ট আপনার কম্পিউটারে চুপচাপ চলে আর অর্ডার এলে সঠিক প্রিন্টারে পাঠিয়ে
+                দোকানে এখন যা আছে, তা দিয়েই শুরু। প্রিন্ট এজেন্ট কম্পিউটারের কোণে চুপচাপ বসে থাকে আর অর্ডার এলেই ঠিক প্রিন্টারে পাঠিয়ে
                 দেয়।
               </p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <ul className="flex flex-col divide-y divide-foreground/10 rounded-2xl border border-foreground/15 bg-background">
               {requirements.map((item) => (
-                <div key={item.title} className="flex flex-col gap-2 rounded-xl border p-5">
-                  <item.icon className="size-5 text-muted-foreground" />
-                  <h3 className="font-semibold">{item.title}</h3>
-                  <p className="text-sm text-muted-foreground">{item.text}</p>
-                </div>
+                <li key={item.title} className="flex items-center gap-4 p-5">
+                  <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-muted">
+                    <item.icon className="size-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="font-semibold">{item.title}</h3>
+                    <p className="text-sm text-muted-foreground">{item.text}</p>
+                  </div>
+                  <CheckIcon className="ml-auto size-5 shrink-0 text-emerald-600" />
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
         </section>
 
-        {/* Pricing */}
-        <section id="pricing" className="scroll-mt-16 border-y bg-muted/30">
-          <div className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
-            <SectionHeading eyebrow="মূল্য" title="যত মেশিন, তত খরচ — এর বেশি কিছু না" />
-            <Card className="mx-auto mt-14 max-w-md shadow-lg">
-              <CardHeader className="text-center">
-                <CardDescription>প্রতিটি প্রিন্টার বা ফটোকপি মেশিন</CardDescription>
-                <div className="flex items-baseline justify-center gap-1 py-2">
-                  <span className="text-5xl font-bold tracking-tight">{formatTaka(fee)}</span>
+        {/* Pricing as a shop receipt */}
+        <section id="pricing" className="bg-paper scroll-mt-16">
+          <div className="mx-auto grid max-w-6xl gap-14 px-4 py-20 md:px-6 md:py-28 lg:grid-cols-2 lg:items-center">
+            <div className="flex flex-col gap-4">
+              <Eyebrow>মূল্য</Eyebrow>
+              <h2 className="text-3xl leading-tight font-extrabold tracking-tight text-balance md:text-5xl">
+                যত মেশিন, তত খরচ।
+                <br />
+                <span className="marker px-1">এর বেশি এক টাকাও না।</span>
+              </h2>
+              <p className="text-lg leading-relaxed text-muted-foreground">
+                অর্ডারপ্রতি কমিশন নেই, সেটআপ ফি নেই। প্রথম {formatNumber(trialDays)} দিন একদম ফ্রি — কোনো কার্ড বা পেমেন্ট লাগবে না।
+              </p>
+            </div>
+            <div className="mx-auto w-full max-w-sm rotate-1 drop-shadow-[0_18px_30px_oklch(0.18_0.02_264/0.15)]">
+              <div className="edge-zigzag bg-background px-7 pt-8 font-mono">
+                <div className="flex flex-col items-center gap-1 border-b border-dashed border-foreground/30 pb-5 text-center">
+                  <Logo className="font-sans" />
+                  <span className="text-xs text-muted-foreground">মাসিক বিল · প্রতি মেশিন</span>
+                </div>
+                <div className="flex items-baseline justify-center gap-1 py-6">
+                  <span className="text-6xl font-bold tracking-tighter">{formatTaka(fee)}</span>
                   <span className="text-muted-foreground">/মাস</span>
                 </div>
-                <CardDescription>
-                  যেমন: ১টি প্রিন্টার + ১টি ফটোকপি মেশিন = {formatTaka(fee * 2)}/মাস
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ul className="flex flex-col gap-3 text-sm">
+                <ul className="flex flex-col gap-2.5 border-y border-dashed border-foreground/30 py-5 text-sm">
                   {[
                     "সীমাহীন প্রিন্ট অর্ডার",
-                    "নিজের বিকাশ মার্চেন্ট সংযোগ",
+                    "নিজের বিকাশ মার্চেন্ট",
                     "ক্যাশ মোড ও সাউন্ড অ্যালার্ট",
                     "QR কোড পোস্টার",
                     "অর্ডার ও আয়ের হিসাব",
-                    "প্রতি অর্ডারে কোনো কমিশন নেই",
                   ].map((item) => (
-                    <li key={item} className="flex items-center gap-2">
-                      <CheckIcon className="size-4 shrink-0 text-emerald-600" /> {item}
+                    <li key={item} className="flex items-baseline gap-2">
+                      <span>{item}</span>
+                      <span className="flex-1 border-b border-dotted border-foreground/30" />
+                      <CheckIcon className="size-4 shrink-0 self-center text-emerald-600" />
                     </li>
                   ))}
                 </ul>
-              </CardContent>
-              <CardFooter className="flex-col gap-2 border-t pt-4">
-                <Button size="lg" className="h-11 w-full text-base" render={<Link href="/login" />} nativeButton={false}>
-                  {formatNumber(trialDays)} দিন ফ্রি ট্রায়াল শুরু করুন
+                <div className="flex flex-col gap-1 py-5 text-sm">
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>উদাহরণ: ১ প্রিন্টার + ১ ফটোকপি</span>
+                  </div>
+                  <div className="flex justify-between text-base font-bold">
+                    <span>মোট</span>
+                    <span>{formatTaka(fee * 2)}/মাস</span>
+                  </div>
+                </div>
+                <Button size="lg" className="h-12 w-full font-sans text-base" render={<Link href="/login" />} nativeButton={false}>
+                  ফ্রি ট্রায়াল শুরু করুন
                 </Button>
-                <span className="text-xs text-muted-foreground">ট্রায়ালে কোনো কার্ড বা পেমেন্ট লাগবে না</span>
-              </CardFooter>
-            </Card>
+                <p className="pt-4 text-center text-xs text-muted-foreground">ধন্যবাদ, আবার আসবেন ✦</p>
+              </div>
+            </div>
           </div>
         </section>
 
         {/* FAQ */}
-        <section id="faq" className="scroll-mt-16">
-          <div className="mx-auto max-w-3xl px-4 py-20 md:px-6 md:py-28">
-            <SectionHeading eyebrow="প্রশ্নোত্তর" title="সাধারণ কিছু প্রশ্ন" />
-            <Accordion className="mt-12">
+        <section id="faq" className="scroll-mt-16 border-t border-foreground/10">
+          <div className="mx-auto grid max-w-6xl gap-10 px-4 py-20 md:px-6 md:py-28 lg:grid-cols-[0.8fr_1.2fr]">
+            <div className="flex flex-col gap-4">
+              <Eyebrow>প্রশ্নোত্তর</Eyebrow>
+              <h2 className="text-3xl leading-tight font-extrabold tracking-tight text-balance md:text-5xl">
+                দোকানদাররা যা জানতে চান
+              </h2>
+            </div>
+            <Accordion>
               {faqs.map((faq) => (
-                <AccordionItem key={faq.q} value={faq.q}>
-                  <AccordionTrigger className="text-base">{faq.q}</AccordionTrigger>
-                  <AccordionContent className="leading-relaxed text-muted-foreground">{faq.a}</AccordionContent>
+                <AccordionItem key={faq.q} value={faq.q} className="border-foreground/15">
+                  <AccordionTrigger className="py-5 text-lg font-semibold">{faq.q}</AccordionTrigger>
+                  <AccordionContent className="text-base leading-relaxed text-muted-foreground">{faq.a}</AccordionContent>
                 </AccordionItem>
               ))}
             </Accordion>
@@ -326,21 +468,24 @@ export default function HomePage() {
 
         {/* CTA */}
         <section className="px-4 pb-20 md:px-6">
-          <div className="relative mx-auto flex max-w-6xl flex-col items-center gap-6 overflow-hidden rounded-3xl bg-primary px-6 py-16 text-center text-primary-foreground">
-            <div
-              aria-hidden
-              className="pointer-events-none absolute -right-20 -bottom-32 size-96 rounded-full bg-violet-500/40 blur-3xl"
-            />
-            <h2 className="relative max-w-2xl text-3xl leading-tight font-bold tracking-tight text-balance md:text-4xl">
-              আজই আপনার দোকানকে স্মার্ট করে তুলুন
-            </h2>
-            <p className="relative max-w-xl text-primary-foreground/70">
-              Gmail দিয়ে লগইন করুন, দোকান সেটআপ করুন, প্রিন্টার যুক্ত করুন — ১০ মিনিটেই প্রথম অর্ডার নিতে পারবেন।
-            </p>
+          <div className="relative mx-auto flex max-w-6xl flex-col items-start gap-8 overflow-hidden rounded-3xl bg-foreground px-6 py-14 text-background md:flex-row md:items-end md:justify-between md:px-14 md:py-20">
+            <div aria-hidden className="bg-halftone pointer-events-none absolute inset-0 text-cyan-400/25" />
+            <div aria-hidden className="absolute top-0 right-0 left-0 flex h-1.5">
+              {inks.slice(0, 3).map((ink) => (
+                <span key={ink} className={cn("flex-1", ink)} />
+              ))}
+            </div>
+            <div className="relative flex max-w-2xl flex-col gap-4">
+              <h2 className="text-3xl leading-tight font-extrabold tracking-tight text-balance md:text-5xl">
+                আজ দোকান খোলার আগেই সেটআপ হয়ে যাবে
+              </h2>
+              <p className="text-lg text-background/65">
+                Gmail দিয়ে লগইন, দোকানের নাম, প্রিন্টার যুক্ত — ১০ মিনিটে প্রথম অর্ডার।
+              </p>
+            </div>
             <Button
               size="lg"
-              variant="secondary"
-              className="relative h-12 px-6 text-base"
+              className="relative h-13 shrink-0 bg-yellow-300 px-7 text-base text-foreground hover:bg-yellow-200"
               render={<Link href="/login" />}
               nativeButton={false}
             >
@@ -350,7 +495,7 @@ export default function HomePage() {
         </section>
       </main>
 
-      <footer className="border-t">
+      <footer className="border-t border-foreground/10">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm text-muted-foreground md:flex-row md:px-6">
           <Logo className="text-foreground" />
           <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2">
@@ -367,75 +512,145 @@ export default function HomePage() {
   )
 }
 
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="flex items-center gap-2 text-sm font-semibold text-primary">
+      <span className="h-px w-6 bg-primary" />
+      {children}
+    </span>
+  )
+}
+
 function SectionHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
   return (
-    <div className="mx-auto flex max-w-2xl flex-col items-center gap-3 text-center">
-      <span className="text-sm font-medium text-primary">{eyebrow}</span>
-      <h2 className="text-3xl leading-tight font-bold tracking-tight text-balance md:text-4xl">{title}</h2>
+    <div className="flex max-w-3xl flex-col gap-4">
+      <Eyebrow>{eyebrow}</Eyebrow>
+      <h2 className="text-3xl leading-tight font-extrabold tracking-tight text-balance md:text-5xl">{title}</h2>
     </div>
   )
 }
 
-/** Illustration of the customer's phone screen, built from plain elements. */
-function HeroMockup() {
+function BentoCard({ className, children }: { className?: string; children: React.ReactNode }) {
+  return <div className={cn("rounded-2xl p-6 md:p-8", className)}>{children}</div>
+}
+
+function RouteRow({ from, to, dot }: { from: string; to: string; dot: string }) {
   return (
-    <div className="relative mx-auto w-full max-w-sm" aria-hidden>
-      <div className="relative rounded-[2.5rem] border-8 border-foreground/90 bg-background p-4 shadow-2xl">
-        <div className="mx-auto mb-4 h-1.5 w-16 rounded-full bg-muted" />
-        <div className="flex items-center gap-2 pb-4">
-          <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <SmartphoneIcon className="size-4" />
-          </span>
-          <div>
-            <div className="text-sm font-semibold">রহিম ফটোকপি</div>
-            <div className="text-xs text-muted-foreground">নীলক্ষেত, ঢাকা</div>
+    <div className="flex items-center gap-2">
+      <span className="flex items-center gap-2 rounded-md bg-background/10 px-2.5 py-1.5 whitespace-nowrap">
+        <span className={cn("size-2 rounded-full", dot)} />
+        {from}
+      </span>
+      <span className="h-px flex-1 border-t border-dashed border-background/35" />
+      <span className="flex items-center gap-1.5 rounded-md border border-background/20 px-2.5 py-1.5 whitespace-nowrap">
+        <PrinterIcon className="size-3.5" />
+        {to}
+      </span>
+    </div>
+  )
+}
+
+/** Printer's crop/registration mark, used as a corner ornament. */
+function RegistrationMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={cn("size-6 text-foreground/25", className)} aria-hidden>
+      <circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" strokeWidth="1" />
+      <path d="M12 0v24M0 12h24" stroke="currentColor" strokeWidth="1" />
+    </svg>
+  )
+}
+
+/** A deterministic, decorative QR-like pattern (21×21 with three finder squares). */
+const QR_SIZE = 21
+const qrCells = Array.from({ length: QR_SIZE * QR_SIZE }, (_, i) => {
+  const x = i % QR_SIZE
+  const y = Math.floor(i / QR_SIZE)
+  const finder = (fx: number, fy: number) => {
+    const dx = x - fx
+    const dy = y - fy
+    if (dx < 0 || dy < 0 || dx > 6 || dy > 6) return null
+    const ring = dx === 0 || dy === 0 || dx === 6 || dy === 6
+    const core = dx >= 2 && dx <= 4 && dy >= 2 && dy <= 4
+    return ring || core
+  }
+  const f = finder(0, 0) ?? finder(14, 0) ?? finder(0, 14)
+  if (f !== null) return f
+  if ((x === 7 || y === 7) && (x < 8 || y < 8)) return false
+  if (x === 13 && y < 8) return false
+  if (y === 13 && x < 8) return false
+  return (x * 7 + y * 13 + x * y * 3) % 5 < 2
+})
+
+function FakeQr({ className }: { className?: string }) {
+  return (
+    <svg viewBox={`0 0 ${QR_SIZE} ${QR_SIZE}`} className={className} aria-hidden shapeRendering="crispEdges">
+      {qrCells.map((on, i) =>
+        on ? <rect key={i} x={i % QR_SIZE} y={Math.floor(i / QR_SIZE)} width="1" height="1" fill="currentColor" /> : null,
+      )}
+    </svg>
+  )
+}
+
+/** Hero illustration: a printer feeding out the customer's order slip, with the QR poster beside it. */
+function PrinterScene() {
+  return (
+    <div className="relative mx-auto hidden w-full max-w-[22rem] pt-6 pb-4 md:block" aria-hidden>
+      {/* QR poster */}
+      <div className="absolute -top-2 -left-6 z-20 w-36 -rotate-6 rounded-xl border border-foreground/15 bg-background p-3 shadow-xl sm:-left-16">
+        <FakeQr className="w-full text-foreground" />
+        <p className="pt-2 text-center text-xs font-semibold">স্ক্যান করে প্রিন্ট দিন</p>
+      </div>
+
+      {/* Printer body */}
+      <div className="relative z-10 ml-auto w-[86%] rounded-2xl bg-foreground p-4 pb-5 text-background shadow-2xl">
+        <div className="flex items-center justify-between">
+          <div className="flex gap-1.5">
+            {inks.slice(0, 3).map((ink) => (
+              <span key={ink} className={cn("h-1.5 w-5 rounded-full", ink)} />
+            ))}
+          </div>
+          <div className="flex items-center gap-2 rounded-md bg-background/10 px-2 py-1 font-mono text-xs">
+            <span className="animate-blink size-1.5 rounded-full bg-emerald-400" />
+            প্রিন্ট হচ্ছে
           </div>
         </div>
-        <div className="flex flex-col gap-3 rounded-2xl border p-3">
-          <div className="flex items-center gap-2 rounded-lg bg-muted p-2.5">
-            <FileTextIcon className="size-6 text-muted-foreground" />
-            <div className="min-w-0">
-              <div className="truncate text-sm font-medium">assignment.pdf</div>
-              <div className="text-xs text-muted-foreground">১২ পৃষ্ঠা</div>
-            </div>
+        <div className="mt-4 h-2.5 rounded-full bg-black/60" />
+      </div>
+
+      {/* Paper coming out */}
+      <div className="relative z-0 -mt-2 ml-auto h-[19rem] w-[86%] overflow-hidden px-3">
+        <div className="animate-paper-feed rounded-b-md border border-t-0 border-foreground/10 bg-background px-5 pt-6 pb-5 font-mono text-sm shadow-lg">
+          <div className="flex items-center justify-between border-b border-dashed border-foreground/30 pb-3">
+            <span className="font-sans font-semibold">রহিম ফটোকপি</span>
+            <span className="text-xs text-muted-foreground">নীলক্ষেত</span>
           </div>
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <div className="rounded-lg border-2 border-primary bg-primary/5 p-2">
-              <div className="font-medium">সাদা-কালো</div>
-              <div className="text-xs text-muted-foreground">৳৩/পৃষ্ঠা</div>
-            </div>
-            <div className="rounded-lg border p-2">
-              <div className="font-medium">রঙিন</div>
-              <div className="text-xs text-muted-foreground">৳১০/পৃষ্ঠা</div>
-            </div>
+          <div className="flex flex-col items-center py-4">
+            <span className="text-xs text-muted-foreground">টোকেন</span>
+            <span className="text-6xl leading-none font-bold tracking-tighter">২৭</span>
           </div>
-          <div className="flex items-end justify-between border-t pt-3">
-            <span className="text-xs text-muted-foreground">১২ পৃষ্ঠা × ২ কপি</span>
-            <span className="text-xl font-bold">৳৭২</span>
-          </div>
-          <div className="flex items-center justify-center gap-2 rounded-md bg-[#E2136E] py-2.5 text-sm font-medium text-white">
-            <BkashLogo className="px-1 py-0.5 [&_img]:h-4" /> দিয়ে পেমেন্ট করুন
+          <div className="flex flex-col gap-1.5 border-t border-dashed border-foreground/30 pt-3 text-xs">
+            <div className="flex justify-between">
+              <span>assignment.pdf</span>
+              <span>১২ পৃ.</span>
+            </div>
+            <div className="flex justify-between">
+              <span>সাদা-কালো × ২ কপি</span>
+              <span>৳৭২</span>
+            </div>
+            <div className="flex items-center justify-between pt-1 font-semibold text-[#E2136E]">
+              <span>বিকাশে পরিশোধিত</span>
+              <CheckIcon className="size-4" />
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="absolute top-16 -left-6 flex items-center gap-2 rounded-xl border bg-background p-3 shadow-lg sm:-left-14">
-        <span className="flex size-8 items-center justify-center rounded-full bg-violet-500/15 text-violet-600">
-          <PrinterIcon className="size-4" />
-        </span>
-        <div>
-          <div className="text-xs text-muted-foreground">টোকেন #২৭</div>
-          <div className="text-sm font-semibold">প্রিন্ট হচ্ছে…</div>
-        </div>
-      </div>
-
-      <div className="absolute -right-4 bottom-20 flex items-center gap-2 rounded-xl border bg-background p-3 shadow-lg sm:-right-10">
-        <span className="flex size-8 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600">
-          <CheckIcon className="size-4" />
-        </span>
-        <div>
-          <div className="text-xs text-muted-foreground">পেমেন্ট সফল</div>
-          <div className="text-sm font-semibold">৳৭২ পেয়েছেন</div>
+      {/* Cash alert sticky note */}
+      <div className="absolute right-0 bottom-0 z-20 flex rotate-3 items-center gap-2 rounded-lg bg-yellow-300 px-3 py-2.5 text-foreground shadow-lg sm:-right-8">
+        <BellRingIcon className="size-4" />
+        <div className="leading-tight">
+          <div className="text-xs">নতুন ক্যাশ অর্ডার</div>
+          <div className="text-sm font-bold">টোকেন #২৮ · ৳২০</div>
         </div>
       </div>
     </div>

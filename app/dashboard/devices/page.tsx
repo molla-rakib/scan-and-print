@@ -1,17 +1,18 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
-import { KeyRoundIcon, MonitorIcon, PrinterIcon } from "lucide-react"
+import { DownloadIcon, KeyRoundIcon, MonitorIcon, PrinterIcon } from "lucide-react"
 import { IconTile } from "@/components/icon-tile"
 import { LiveRefresh } from "@/components/live-refresh"
 import { PageHeader } from "@/components/page-header"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { requireShop } from "@/lib/auth"
-import { formatDateTime, formatNumber, formatTaka } from "@/lib/constants"
+import { AGENT_DOWNLOAD_URL, formatDateTime, formatNumber, formatTaka } from "@/lib/constants"
 import { env } from "@/lib/env"
 import { onlineCutoff } from "@/lib/jobs"
 import { Agent, Device } from "@/lib/models"
@@ -29,6 +30,9 @@ export default function DevicesPage() {
         icon={PrinterIcon}
         tone="emerald"
       >
+        <Button variant="outline" nativeButton={false} render={<a href={AGENT_DOWNLOAD_URL} download />}>
+          <DownloadIcon /> এজেন্ট ডাউনলোড
+        </Button>
         <PairPcButton />
       </PageHeader>
       <Suspense fallback={<Skeleton className="h-96" />}>

@@ -43,6 +43,9 @@ export const AGENT_ONLINE_WINDOW_MS = 45_000
 
 export const MAX_COPIES = 50
 
+// The Windows print agent, published by agent/release.ps1. It installs itself when run.
+export const AGENT_DOWNLOAD_URL = "/downloads/ScanAndPrintAgent.exe"
+
 /** Formats a number with Bangla digits, e.g. 120 → "১২০". */
 export function formatNumber(value: number) {
   return value.toLocaleString("bn-BD", { maximumFractionDigits: 2 })

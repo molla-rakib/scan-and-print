@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
   )
   await createSession({ userId: user.id, email: user.email })
 
-  const response = NextResponse.redirect(`${env.appUrl}${isAdminEmail(user.email) ? "/admin" : "/dashboard"}`)
+  const response = NextResponse.redirect(`${env.appUrl}${isAdminEmail(user.email) ? "/dashboard/admin" : "/dashboard"}`)
   response.cookies.delete({ name: OAUTH_COOKIE, path: "/api/auth/google" })
   return response
 }

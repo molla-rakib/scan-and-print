@@ -32,10 +32,16 @@ export async function requireAdmin() {
   return user
 }
 
-/** Signed-in shop owner and their shop. Redirects to onboarding if no shop exists yet. */
-export const requireShop = cache(async () => {
+/** Signed-in user and their shop, which may not exist yet (e.g. an admin without a shop). */
+export const getUserAndShop = cache(async () => {
   const user = await requireUser()
   const shop = await Shop.findOne({ ownerId: user.id })
+  return { user, shop }
+})
+
+/** Signed-in shop owner and their shop. Redirects to onboarding if no shop exists yet. */
+export const requireShop = cache(async () => {
+  const { user, shop } = await getUserAndShop()
   if (!shop) redirect("/onboarding")
   return { user, shop }
 })

@@ -3,7 +3,7 @@ import { AdminNavItem, AppSidebar, PendingBadge, UserMenu } from "@/app/dashboar
 import { Logo } from "@/components/logo"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { Skeleton } from "@/components/ui/skeleton"
-import { requireShop } from "@/lib/auth"
+import { getUserAndShop } from "@/lib/auth"
 import { PrintJob } from "@/lib/models"
 
 export default function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
@@ -38,17 +38,19 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
   )
 }
 
+// Sidebar slots must not redirect: an admin without a shop can still open the admin panel.
 async function SidebarPendingBadge() {
-  const { shop } = await requireShop()
+  const { shop } = await getUserAndShop()
+  if (!shop) return null
   return <PendingBadge count={await PrintJob.countDocuments({ shopId: shop._id, status: "awaiting_approval" })} />
 }
 
 async function SidebarAdminItem() {
-  const { user } = await requireShop()
+  const { user } = await getUserAndShop()
   return user.isAdmin ? <AdminNavItem /> : null
 }
 
 async function SidebarUser() {
-  const { user, shop } = await requireShop()
-  return <UserMenu shopName={shop.name} email={user.email} />
+  const { user, shop } = await getUserAndShop()
+  return <UserMenu title={shop?.name ?? (user.name || user.email)} email={user.email} isAdmin={user.isAdmin} />
 }

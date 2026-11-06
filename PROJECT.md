@@ -3,7 +3,7 @@
 Living document: the goal, the decisions behind the design, what is done, and what comes next.
 Update it whenever a feature lands, a decision changes, or a question gets answered.
 
-_Last updated: 2026-11-05_
+_Last updated: 2026-11-07_
 
 ---
 
@@ -62,6 +62,8 @@ that Windows can print to will work.
 |---|---|
 | Build our own print agent (not PrintNode etc.) | Full control (pairing, cash-approval popups, branding). No per-printer fee eating into the ৳300/device. The server API already exists. |
 | Agent in **Rust** (switched from Go on 2026-11-05) | The dev machine is already set up for Rust. Single small `.exe` (~2–5 MB), Microsoft's official `windows` crate for the printer APIs, fewer antivirus false positives than Go binaries, and the Bangla cash popup can be built with Tauri. Can still target Linux/Raspberry Pi later. |
+| Agent is an **auto-start tray app** in the user's session, not a Windows service (decided 2026-11-06) | One program that can show the tray icon and cash popup itself and prints to printers installed for that user. Trade-off: it only runs while someone is logged in. |
+| Shop PCs need **Windows 10 or newer** (decided 2026-11-06) | Current Rust and WebView2 support it out of the box; the popup is HTML (tao + wry + tray-icon, the libraries under Tauri) so Bangla renders like the website. |
 | Print through Windows drivers | Supports essentially every printer/MFP brand. Pure analog copiers (no print port) cannot be supported. |
 | Each shop connects **its own bKash merchant (Tokenized Checkout / PGW)** | Money goes straight to the shop. Collecting payments for shops would require a Bangladesh Bank license. |
 | **Cash mode** with mandatory owner approval | Shops without PGW access can still operate, and nobody can print for free from home. The owner taps "approve" after taking the money. |
@@ -70,7 +72,7 @@ that Windows can print to will work.
 | **MongoDB** (replica set), files in **GridFS** | The replica set enables transactions. PDFs are only kept until printed, so GridFS replaces MinIO (one less service; MinIO images are discontinued). |
 | Delete files right after printing (+ 1-day storage expiry) | Customers print NIDs and certificates, so privacy matters. |
 | **Polling** for live updates (MVP) | Simple and reliable. WebSocket can replace it later if needed. |
-| UI fully in **Bangla** | Target users. Anek Bangla font, Poppins for English, Bangla digits, "ক্যাশ" not "নগদ" (competitor brand). |
+| UI fully in **Bangla** | Target users. Noto Sans Bengali font for everything, Bangla digits, "ক্যাশ" not "নগদ" (competitor brand). |
 
 ---
 
@@ -98,7 +100,8 @@ that Windows can print to will work.
 
 ### 🔜 Next: Phase 2, Windows print agent (Rust)
 
-Prerequisite: Rust toolchain (already installed on the dev machine). Code lives in `agent/` (see `agent/README.md`).
+Code lives in `agent/` (see `agent/README.md`). Release with `agent/release.ps1`, which publishes
+`public/downloads/ScanAndPrintAgent.exe` + `agent.json`. Version 1.0.0 is built for `https://scan-and-print.vercel.app`.
 
 - [x] Pairing: `scan-print-agent pair <CODE>`, token saved encrypted with Windows DPAPI
 - [x] Enumerate installed Windows printers + detect color/duplex capability and state (offline, paper out, …);
@@ -109,10 +112,21 @@ Prerequisite: Rust toolchain (already installed on the dev machine). Code lives 
       from the PC right after *(code done; not yet tested on a real printer)*
 - [x] Report completed / failed (Bangla error message shown in the dashboard), retried through short outages
 - [ ] Test on a real printer with SumatraPDF next to the agent (B/W, color, copies)
-- [ ] Run as a Windows service + system tray icon (status, re-pair, quit)
-- [ ] Cash-order popup on the shop PC with an "Approve" button (needs a small agent API addition)
-- [ ] Installer (`.exe`) + "Download Print Agent" button in Dashboard → Devices
-- [ ] Auto-update from our server
+- [x] Tray app that starts with Windows (HKCU Run key, turned on at first pairing, toggle in the menu): status
+      icon + menu (online/offline, printers, cash orders, open dashboard, re-pair, log file, quit), first-run
+      pairing window, single instance; clicking the shortcut while running brings it forward. Release builds
+      have no console window. *(Tested on the dev PC)*
+- [x] Cash-order popup on the shop PC: pops up with a chime when a cash order arrives, shows token, pages,
+      copies, color and amount, with "বাতিল" / "টাকা পেয়েছি, প্রিন্ট করুন". Server: `GET /api/agent/approvals`,
+      `POST /api/agent/approvals/[id]`, and `pendingApprovals` in the claim response. *(Tested: popup appears,
+      approve queues the job, closes after the last order; API approve/cancel/409/400/401)*
+- [x] Installer: the downloaded exe installs itself per user (no admin) to `%LOCALAPPDATA%\Programs\ScanAndPrint`,
+      Start Menu + desktop shortcuts, Settings → Apps entry with uninstall (removes everything incl. saved token).
+      "এজেন্ট ডাউনলোড" button + link in the pairing dialog on Dashboard → ডিভাইস. *(Tested install/uninstall)*
+- [x] SumatraPDF served from `public/downloads/` and downloaded by the agent on first start (SHA-256 pinned)
+- [x] Auto-update: checks `/downloads/agent.json` 2 min after start then every 6 h, verifies SHA-256, finishes
+      the current job, replaces itself and restarts. *(Tested 1.0.0 → 1.0.1)*
+- [x] App icon + version info embedded in the exe
 - [ ] Code-signing certificate so Windows does not show the "unknown publisher" warning
 
 ### 📋 Phase 3: Production launch
@@ -138,12 +152,12 @@ Prerequisite: Rust toolchain (already installed on the dev machine). Code lives 
 
 ## 5. Open items waiting on the owner
 
-- [ ] Decide: Windows service, or auto-start app in the user session (a service runs in session 0 and cannot show the tray icon or cash popup itself)
-- [ ] Confirm the minimum Windows version for shop PCs (stable Rust and WebView2/Tauri need Windows 10+)
 - [ ] bKash sandbox credentials to test payments end-to-end
 - [ ] Decide which Google account(s) are admin (`ADMIN_EMAILS` in `.env`)
 - [ ] Domain name + hosting choice (Phase 3)
-- [ ] Code-signing certificate purchase (before giving the agent to real shops)
+- [ ] Code-signing certificate purchase (before giving the agent to real shops; until then SmartScreen shows
+      "Windows protected your PC" → More info → Run anyway)
+- [ ] Test the agent on a real shop PC + printer (B/W, color, copies)
 
 ---
 
@@ -154,3 +168,6 @@ Prerequisite: Rust toolchain (already installed on the dev machine). Code lives 
 | 2026-11-03 | Project idea discussed. Architecture, stack and key decisions agreed. Docker infra + full web MVP built. |
 | 2026-11-04 | Switched email OTP → Google login. Full Bangla UI (Anek Bangla). Royal blue theme, more spacing, colorful dashboard, mobile fixes. "ক্যাশ" wording, bKash logo. Session-aware landing/login. Decided to build our own print agent in Go. Exact npm versions (`.npmrc` save-exact). Replaced MinIO with MongoDB GridFS; docker-compose is MongoDB only. |
 | 2026-11-05 | Print agent language changed from Go to Rust (dev machine already set up for Rust). Built the core Rust agent (`agent/`): pairing, printer detection, heartbeat/poll loop with reconnect, download + SumatraPDF printing, result reporting. Tested end-to-end in dry-run mode against the local server (pair → heartbeat → claim → download → completed → file deleted; removed PC → agent stops). 1.5 MB release exe. |
+| 2026-11-06 | Decided: auto-start tray app, Windows 10+. Built the tray app (status icon + menu, pairing window, start with Windows, log file) and the cash-approval popup, plus the agent approvals API on the server. Release exe 1.9 MB. |
+| 2026-11-07 | Landing page redesigned with a print-shop identity (CMYK accents, paper texture, live-queue ticker, before/after, bento features, receipt-style pricing; hero shows a printer feeding out the order slip with token, QR poster and cash-alert note). Admin panel moved into the dashboard at `/dashboard/admin` (`/admin` redirects; sidebar works for admins without a shop). Fixed the sidebar profile menu crash (Base UI `GroupLabel` outside `Group`) and added Settings/Admin links to it. Font switched to Noto Sans Bengali site-wide. |
+| 2026-11-07 | Print agent 1.0.0 finished: self-installing per-user exe with shortcuts and uninstall, auto-update via `/downloads/agent.json`, SumatraPDF downloaded on first start, embedded icon, production server `https://scan-and-print.vercel.app` built in, `agent/release.ps1`. Dashboard → ডিভাইস has an "এজেন্ট ডাউনলোড" button. Tested on the dev PC against a local server: install, pairing window, cash popup + approve, auto-update 1.0.0 → 1.0.1, uninstall. Not yet tested on a real printer. |

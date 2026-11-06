@@ -60,7 +60,7 @@ export default function LoginPage({ searchParams }: Props) {
 /** Already signed in: skip the login screen. */
 async function RedirectIfSignedIn() {
   const user = await getCurrentUser()
-  if (user) redirect(user.isAdmin ? "/admin" : "/dashboard")
+  if (user) redirect(user.isAdmin ? "/dashboard/admin" : "/dashboard")
   return null
 }
 

@@ -58,8 +58,6 @@ pub struct PrinterReport {
 #[serde(rename_all = "camelCase")]
 pub struct HeartbeatResponse {
     pub devices: Vec<DeviceStatus>,
-    #[serde(default)]
-    pub pending_approvals: u32,
 }
 
 #[derive(Deserialize)]
@@ -70,8 +68,30 @@ pub struct DeviceStatus {
 }
 
 #[derive(Deserialize)]
-struct ClaimResponse {
-    job: Option<Job>,
+#[serde(rename_all = "camelCase")]
+pub struct ClaimResponse {
+    pub job: Option<Job>,
+    /// Cash orders waiting for approval (missing on servers older than the approvals API).
+    #[serde(default)]
+    pub pending_approvals: u32,
+}
+
+/// A cash order waiting for the owner to take the money and approve it.
+#[derive(Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Approval {
+    pub id: String,
+    pub token: u32,
+    pub page_count: u32,
+    pub copies: u32,
+    pub color_mode: String,
+    pub amount: f64,
+    pub created_at: String,
+}
+
+#[derive(Deserialize)]
+struct ApprovalsResponse {
+    jobs: Vec<Approval>,
 }
 
 #[derive(Deserialize)]
@@ -119,8 +139,24 @@ impl Client {
         )
     }
 
-    pub fn claim(&self) -> Result<Option<Job>, ApiError> {
-        Ok(self.post::<ClaimResponse>("/api/agent/jobs/claim", &serde_json::json!({}))?.job)
+    pub fn claim(&self) -> Result<ClaimResponse, ApiError> {
+        self.post("/api/agent/jobs/claim", &serde_json::json!({}))
+    }
+
+    pub fn approvals(&self) -> Result<Vec<Approval>, ApiError> {
+        let mut request = self.http.get(format!("{}/api/agent/approvals", self.server));
+        if let Some(token) = &self.token {
+            request = request.header("Authorization", format!("Bearer {token}"));
+        }
+        let response = request.call().map_err(network)?;
+        let mut response = check_status(response)?;
+        Ok(response.body_mut().read_json::<ApprovalsResponse>().map_err(network)?.jobs)
+    }
+
+    /// `approve` queues the job for printing; otherwise it is cancelled.
+    pub fn decide(&self, job_id: &str, approve: bool) -> Result<(), ApiError> {
+        let action = if approve { "approve" } else { "cancel" };
+        self.post::<serde_json::Value>(&format!("/api/agent/approvals/{job_id}"), &serde_json::json!({ "action": action })).map(|_| ())
     }
 
     pub fn report(&self, job_id: &str, error: Option<&str>) -> Result<(), ApiError> {
