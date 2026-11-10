@@ -26,6 +26,9 @@ const schema = z
 
 const DRAFT_LIFETIME_MS = 2 * 60 * 60 * 1000
 
+// Joining pieces and turning a photo into a PDF can take a few seconds on Vercel's small CPUs.
+export const maxDuration = 60
+
 /**
  * Receives one file (multipart), or joins a file uploaded in pieces: a PDF, or a JPG/PNG photo that is
  * turned into a one-page PDF.

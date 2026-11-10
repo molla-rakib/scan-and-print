@@ -12,6 +12,7 @@ import { MAX_FILES_PER_ORDER, PAPER_SIZE_LABELS, UPLOAD_CHUNK_BYTES, formatNumbe
 import type { PublicShopView } from "@/lib/public-shop"
 import { cn } from "@/lib/utils"
 import { FileCard, fileTotal, printedPages, type FileItem, type PrintOptions } from "./file-card"
+import { prepareImageForUpload } from "./prepare-image"
 import { isImageFile } from "./preview"
 
 // Separate pickers: on Android, an input that accepts images opens the photo picker, which hides PDFs.
@@ -131,11 +132,16 @@ export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUplo
       for (;;) {
         const next = itemsRef.current.find((item) => item.state === "waiting")
         if (!next) break
-        patch(next.key, { state: "uploading", progress: 0 })
+        patch(next.key, { state: "analyzing", progress: 0 })
         try {
+          // Photos become JPEGs here: much faster for the server and smaller to upload.
+          const file = await prepareImageForUpload(next.file)
+          if (file.size > maxUploadMb * 1024 * 1024) throw new Error(`ফাইলটি অনেক বড়। সর্বোচ্চ ${formatNumber(maxUploadMb)} MB।`)
+          // The converted photo is also what the preview shows.
+          patch(next.key, { state: "uploading", file })
           const result = await uploadFile(
             shop.slug,
-            next.file,
+            file,
             orderRef.current,
             (progress) => patch(next.key, { progress }),
             () => patch(next.key, { state: "analyzing" })
@@ -161,7 +167,8 @@ export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUplo
     const added: FileItem[] = []
     for (const file of files.slice(0, Math.max(room, 0))) {
       const supported = file.type === "application/pdf" || /\.pdf$/i.test(file.name) || isImageFile(file)
-      const tooBig = file.size > maxUploadMb * 1024 * 1024
+      // Photos are checked after they are converted, which usually shrinks them a lot.
+      const tooBig = !isImageFile(file) && file.size > maxUploadMb * 1024 * 1024
       added.push({
         key: crypto.randomUUID(),
         file,
