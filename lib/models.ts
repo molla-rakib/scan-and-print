@@ -242,3 +242,18 @@ const subscriptionPaymentSchema = new Schema(
 subscriptionPaymentSchema.index({ createdAt: -1 })
 
 export const SubscriptionPayment = defineModel("SubscriptionPayment", subscriptionPaymentSchema)
+
+/* ------------------------------ Upload pieces ------------------------------ */
+
+// Large uploads arrive in pieces (Vercel limits request bodies to 4.5 MB). Pieces wait here until the
+// final request joins them; unused ones expire after two hours.
+const uploadPartSchema = new Schema({
+  uploadId: { type: String, required: true },
+  shopId: { type: ObjectId, ref: "Shop", required: true },
+  index: { type: Number, required: true },
+  data: { type: Buffer, required: true },
+  createdAt: { type: Date, default: Date.now, expires: 2 * 60 * 60 },
+})
+uploadPartSchema.index({ uploadId: 1, index: 1 }, { unique: true })
+
+export const UploadPart = defineModel("UploadPart", uploadPartSchema)

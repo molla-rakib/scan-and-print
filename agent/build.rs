@@ -27,10 +27,10 @@ BEGIN
   BEGIN
     BLOCK "040904B0"
     BEGIN
-      VALUE "CompanyName", "Scan & Print"
-      VALUE "FileDescription", "Scan & Print Agent"
+      VALUE "CompanyName", "Mudron"
+      VALUE "FileDescription", "Mudron Agent"
       VALUE "FileVersion", "{version}"
-      VALUE "ProductName", "Scan & Print Agent"
+      VALUE "ProductName", "Mudron Agent"
       VALUE "ProductVersion", "{version}"
       VALUE "OriginalFilename", "ScanAndPrintAgent.exe"
     END

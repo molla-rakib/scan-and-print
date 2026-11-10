@@ -8,23 +8,36 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { requireShop } from "@/lib/auth"
 import { env } from "@/lib/env"
 import { PrintPosterButton } from "./print-poster-button"
+import { ShareLinkButtons } from "./share-link"
 
-export const metadata: Metadata = { title: "QR কোড" }
+export const metadata: Metadata = { title: "QR কোড ও লিংক" }
 
 export default function QrPage() {
   return (
     <>
       <PageHeader
-        title="QR কোড"
-        description="এই পোস্টারটি প্রিন্ট করে কাউন্টারে লাগান। গ্রাহক স্ক্যান করলেই আপনার দোকানের পেজ খুলবে।"
+        title="QR কোড ও লিংক"
+        description="পোস্টার প্রিন্ট করে কাউন্টারে লাগান, অথবা লিংক শেয়ার করুন।"
         icon={QrCodeIcon}
         tone="amber"
       >
-        <PrintPosterButton />
+        <Suspense fallback={<PrintPosterButton />}>
+          <HeaderActions />
+        </Suspense>
       </PageHeader>
       <Suspense fallback={<Skeleton className="mx-auto aspect-[3/4] w-full max-w-md" />}>
         <Poster />
       </Suspense>
+    </>
+  )
+}
+
+async function HeaderActions() {
+  const { shop } = await requireShop()
+  return (
+    <>
+      <ShareLinkButtons url={`${env.appUrl}/s/${shop.slug}`} shopName={shop.name} />
+      <PrintPosterButton />
     </>
   )
 }

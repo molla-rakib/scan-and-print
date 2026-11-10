@@ -1,4 +1,4 @@
-# Scan & Print agent (Rust)
+# Mudron (মুদ্রণ) agent (Rust)
 
 The Windows program that runs on the shop's PC. It reports the installed printers to the server, picks up
 paid jobs, prints them, and updates itself. It speaks the same API as
@@ -19,7 +19,7 @@ Windows 11 and updated Windows 10).
 From then on it lives in the tray: a blue icon with a green (online), red (offline / not paired) or
 orange (print software missing) dot. Clicking it, or the desktop shortcut, opens a status window: online state,
 shop, printers, last job.
-Uninstall from Settings → Apps → "Scan & Print Agent".
+Uninstall from Settings → Apps → "Mudron Agent". The exe file, install folder (`%LOCALAPPDATA%\Programs\ScanAndPrint`), registry keys and download URL keep their pre-rename names so installed agents keep updating.
 
 ## Releasing a new version
 

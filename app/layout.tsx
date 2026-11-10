@@ -11,7 +11,8 @@ const notoBengali = Noto_Sans_Bengali({
 })
 
 export const metadata: Metadata = {
-  title: { default: "স্ক্যান অ্যান্ড প্রিন্ট", template: "%s · স্ক্যান অ্যান্ড প্রিন্ট" },
+  title: { default: "মুদ্রণ", template: "%s · মুদ্রণ" },
+  applicationName: "মুদ্রণ (Mudron)",
   description: "QR কোড স্ক্যান করুন, PDF আপলোড করুন, বিকাশে পেমেন্ট করুন — প্রিন্ট হয়ে যাবে স্বয়ংক্রিয়ভাবে।",
 }
 

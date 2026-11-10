@@ -27,7 +27,7 @@ export default function ShopPage({ params }: Props) {
         </Suspense>
       </main>
       <footer className="flex justify-center py-6 text-xs text-muted-foreground">
-        <Logo className="text-xs [&>span]:size-5" />
+        <Logo className="h-7" />
       </footer>
     </div>
   )

@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
+**মুদ্রণ (Mudron).** The brand is "মুদ্রণ" in the Bangla UI and "Mudron" where Windows shows English (agent shortcuts, installed-apps entry, message boxes). The site logo is `public/images/logo.svg` (printing press + name + tagline), shown by `components/logo.tsx`. The press alone (`public/images/logo-small.svg`) is the favicon artwork and the animated landing hero (`components/printing-press.tsx`). The Windows agent keeps its small tile icon (`agent/ui/logo.svg`, `agent/src/icon.rs`). Internal identifiers keep the old name on purpose: the repo, `ScanAndPrintAgent.exe`, the agent's install folder, registry keys and mutexes, and the `scan-and-print.vercel.app` domain; renaming them would break updates of installed agents.
+
 Automatic printing for print/photocopy shops in Bangladesh. A customer scans a shop's QR code, uploads a PDF, picks black & white or color and copies, pays with bKash (or cash at the counter), and the job prints automatically on a printer in the shop.
 
 Three roles:
@@ -61,7 +63,7 @@ Next.js (pages + route handlers + server actions) ◄──HTTPS polling── P
 
 ### Job lifecycle (`lib/jobs.ts`)
 
-1. **Draft.** The browser posts each file (multipart) to `POST /api/public/orders`, one at a time. The first upload creates a `draft` Order; later ones pass `order` to join it. PDFs are page-counted with pdf-lib; JPG/PNG photos become a one-page A4 PDF (`preparePrintFile` in `lib/pdf.ts`). Word files are not accepted. `DELETE /api/public/orders/[publicId]/files/[fileId]` removes a file before paying. Page previews are drawn in the browser with pdf.js (`app/s/[slug]/preview.ts`).
+1. **Draft.** The browser posts each file (multipart) to `POST /api/public/orders`, one at a time. Vercel rejects request bodies over 4.5 MB, so files above `UPLOAD_CHUNK_BYTES` (3.5 MB) are first sent in pieces to `POST /api/public/uploads` (raw body; stored as `UploadPart`, expiring after 2 h) and the final `orders` request passes `upload` + `parts` instead of `file` to join them. The first upload creates a `draft` Order; later ones pass `order` to join it. PDFs are page-counted with pdf-lib; JPG/PNG photos become a one-page A4 PDF (`preparePrintFile` in `lib/pdf.ts`). Word files are not accepted. `DELETE /api/public/orders/[publicId]/files/[fileId]` removes a file before paying. Page previews are drawn in the browser with pdf.js (`app/s/[slug]/preview.ts`).
 2. **Checkout.** `POST /api/public/orders/[publicId]/checkout` takes the options of every file, prices them (`pricePerPage(shop, paperSize, colorMode)`, the same per printed side for duplex) and moves the order to one of:
    - `pending_payment` (bKash), which then goes to `placed` via `/api/bkash/callback?order=…`;
    - `placed` directly (cash). Cash asks for the customer's name and/or mobile number, per the shop's `cash.askName` / `cash.askPhone` switches (`cashFields()` in `lib/jobs.ts`; phone checked with `normalizeBdPhone`); there is no approval step. `awaiting_approval` only exists on old jobs.

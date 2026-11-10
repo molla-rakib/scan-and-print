@@ -22,7 +22,10 @@ use crate::{VERSION, config, icon, log::log, system};
 
 pub const EXE_NAME: &str = "ScanAndPrintAgent.exe";
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-const APP_NAME: &str = "Scan & Print Agent";
+const APP_NAME: &str = "Mudron Agent";
+/// Start Menu / desktop shortcut name. Versions before the Mudron rename used LEGACY_SHORTCUT.
+const SHORTCUT: &str = "Mudron.lnk";
+const LEGACY_SHORTCUT: &str = "Scan & Print.lnk";
 const UNINSTALL_KEY: PCWSTR = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ScanAndPrintAgent");
 
 pub fn install_dir() -> PathBuf {
@@ -70,7 +73,8 @@ pub fn install() -> Result<(), String> {
     register_uninstall(&dir);
     for folder in [&FOLDERID_Programs, &FOLDERID_Desktop] {
         if let Some(folder) = known_folder(folder) {
-            if let Err(e) = create_shortcut(&folder.join("Scan & Print.lnk"), &installed_exe(), &ico) {
+            let _ = fs::remove_file(folder.join(LEGACY_SHORTCUT));
+            if let Err(e) = create_shortcut(&folder.join(SHORTCUT), &installed_exe(), &ico) {
                 log(&format!("Could not create shortcut in {}: {e}", folder.display()));
             }
         }
@@ -94,7 +98,8 @@ pub fn uninstall() -> Result<(), String> {
     let _ = system::set_autostart_for(&installed_exe(), false);
     for folder in [&FOLDERID_Programs, &FOLDERID_Desktop] {
         if let Some(folder) = known_folder(folder) {
-            let _ = fs::remove_file(folder.join("Scan & Print.lnk"));
+            let _ = fs::remove_file(folder.join(SHORTCUT));
+            let _ = fs::remove_file(folder.join(LEGACY_SHORTCUT));
         }
     }
     unsafe {
@@ -140,7 +145,7 @@ fn register_uninstall(dir: &Path) {
     let strings = [
         (w!("DisplayName"), APP_NAME.to_string()),
         (w!("DisplayVersion"), VERSION.to_string()),
-        (w!("Publisher"), "Scan & Print".to_string()),
+        (w!("Publisher"), "Mudron".to_string()),
         (w!("DisplayIcon"), dir.join("app.ico").display().to_string()),
         (w!("InstallLocation"), dir.display().to_string()),
         (w!("UninstallString"), format!("\"{}\" uninstall", exe.display())),

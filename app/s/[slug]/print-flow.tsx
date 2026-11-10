@@ -1,14 +1,14 @@
 "use client"
 
-import { useRef, useState } from "react"
-import { FilePlusIcon, ImageIcon, TriangleAlertIcon, UploadIcon } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { ArrowDownIcon, FilePlusIcon, ImageIcon, TriangleAlertIcon, UploadIcon, WalletIcon } from "lucide-react"
 import { toast } from "sonner"
 import { BkashButton } from "@/components/bkash"
 import { CashCheckout, type CashCustomer } from "@/components/cash-checkout"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { MAX_FILES_PER_ORDER, PAPER_SIZE_LABELS, formatNumber, formatTaka, type PaymentMethod } from "@/lib/constants"
+import { MAX_FILES_PER_ORDER, PAPER_SIZE_LABELS, UPLOAD_CHUNK_BYTES, formatNumber, formatTaka, type PaymentMethod } from "@/lib/constants"
 import type { PublicShopView } from "@/lib/public-shop"
 import { cn } from "@/lib/utils"
 import { FileCard, fileTotal, printedPages, type FileItem, type PrintOptions } from "./file-card"
@@ -31,27 +31,64 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   return data as T
 }
 
-/** Uploads one file into the draft order (created by the first upload), reporting progress. */
-function uploadFile(slug: string, file: File, order: string | null, onProgress: (percent: number) => void, onSent: () => void) {
-  return new Promise<Uploaded>((resolve, reject) => {
-    const form = new FormData()
-    form.append("slug", slug)
-    form.append("file", file)
-    if (order) form.append("order", order)
-
+/** Sends one request with upload progress. Resolves with the JSON response. */
+function send(url: string, body: XMLHttpRequestBodyInit, onProgress: (loaded: number) => void, onSent?: () => void) {
+  return new Promise<Record<string, unknown>>((resolve, reject) => {
     const xhr = new XMLHttpRequest()
-    xhr.open("POST", "/api/public/orders")
+    xhr.open("POST", url)
     xhr.responseType = "json"
-    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(Math.round((e.loaded / e.total) * 100))
-    xhr.upload.onload = onSent
+    xhr.upload.onprogress = (e) => onProgress(e.loaded)
+    if (onSent) xhr.upload.onload = onSent
     xhr.onload = () => {
       const data = xhr.response ?? {}
       if (xhr.status < 300) resolve(data)
-      else reject(new Error(data.error || "ফাইল আপলোড ব্যর্থ হয়েছে। আবার চেষ্টা করুন।"))
+      else reject(Object.assign(new Error(data.error || "ফাইল আপলোড ব্যর্থ হয়েছে। আবার চেষ্টা করুন।"), { status: xhr.status }))
     }
-    xhr.onerror = () => reject(new Error("ইন্টারনেট সংযোগে সমস্যা। আবার চেষ্টা করুন।"))
-    xhr.send(form)
+    xhr.onerror = () => reject(Object.assign(new Error("ইন্টারনেট সংযোগে সমস্যা। আবার চেষ্টা করুন।"), { status: 0 }))
+    xhr.send(body)
   })
+}
+
+/**
+ * Uploads one file into the draft order (created by the first upload), reporting progress in percent.
+ * Files above UPLOAD_CHUNK_BYTES go in pieces, because Vercel rejects request bodies over 4.5 MB; each
+ * piece is retried a couple of times on a flaky connection.
+ */
+async function uploadFile(slug: string, file: File, order: string | null, onProgress: (percent: number) => void, onSent: () => void) {
+  const form = new FormData()
+  form.append("slug", slug)
+  if (order) form.append("order", order)
+  const percent = (sent: number) => onProgress(Math.min(100, Math.round((sent / Math.max(file.size, 1)) * 100)))
+
+  if (file.size <= UPLOAD_CHUNK_BYTES) {
+    form.append("file", file)
+    // onSent fires once the bytes are out and the server starts checking the file.
+    return (await send("/api/public/orders", form, percent, onSent)) as Uploaded
+  }
+
+  const uploadId = crypto.randomUUID().replaceAll("-", "")
+  const parts = Math.ceil(file.size / UPLOAD_CHUNK_BYTES)
+  for (let index = 0; index < parts; index++) {
+    const start = index * UPLOAD_CHUNK_BYTES
+    const piece = file.slice(start, start + UPLOAD_CHUNK_BYTES)
+    const url = `/api/public/uploads?slug=${encodeURIComponent(slug)}&upload=${uploadId}&index=${index}`
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await send(url, piece, (loaded) => percent(start + loaded))
+        break
+      } catch (error) {
+        const status = (error as { status?: number }).status ?? 0
+        // Retry only network failures and server hiccups, not "this shop is closed" and the like.
+        if (attempt >= 3 || (status >= 400 && status < 500)) throw error
+        await new Promise((resolve) => setTimeout(resolve, attempt * 1500))
+      }
+    }
+  }
+  onSent()
+  form.append("upload", uploadId)
+  form.append("parts", String(parts))
+  form.append("name", file.name)
+  return (await send("/api/public/orders", form, () => {})) as Uploaded
 }
 
 const DEFAULT_OPTIONS: PrintOptions = { colorMode: "bw", copies: 1, duplex: false, paperSize: "A4", pages: [] }
@@ -66,6 +103,18 @@ export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUplo
   const itemsRef = useRef<FileItem[]>([])
   const orderRef = useRef<string | null>(null)
   const uploadingRef = useRef(false)
+  const paymentRef = useRef<HTMLDivElement>(null)
+  const [paymentVisible, setPaymentVisible] = useState(true)
+
+  // The total bar at the bottom shows only while the payment card is off screen.
+  const hasItems = items.length > 0
+  useEffect(() => {
+    const element = paymentRef.current
+    if (!element) return
+    const observer = new IntersectionObserver(([entry]) => setPaymentVisible(entry.isIntersecting))
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [hasItems])
 
   function update(fn: (items: FileItem[]) => FileItem[]) {
     itemsRef.current = fn(itemsRef.current)
@@ -190,6 +239,21 @@ export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUplo
     return (
       <Card>
         <CardHeader>
+          <ol className="mb-3 grid grid-cols-3 gap-2 text-center text-xs">
+            {["ফাইল দিন", "কীভাবে প্রিন্ট হবে বাছুন", "পেমেন্ট করুন"].map((step, i) => (
+              <li key={step} className="flex flex-col items-center gap-1.5">
+                <span
+                  className={cn(
+                    "flex size-7 items-center justify-center rounded-full text-sm font-semibold",
+                    i === 0 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                  )}
+                >
+                  {formatNumber(i + 1)}
+                </span>
+                <span className={i === 0 ? "font-medium" : "text-muted-foreground"}>{step}</span>
+              </li>
+            ))}
+          </ol>
           <CardTitle>আপনার ফাইল আপলোড করুন</CardTitle>
           <CardDescription className="flex flex-col">
             {shop.papers.map((p) => (
@@ -236,10 +300,11 @@ export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUplo
 
   return (
     <div className="flex flex-col gap-3" {...dropHandlers}>
-      {items.map((item) => (
+      {items.map((item, i) => (
         <FileCard
           key={item.key}
           item={item}
+          index={items.length > 1 ? i + 1 : null}
           shop={shop}
           disabled={!!paying}
           onChange={(options) => patch(item.key, { options })}
@@ -269,15 +334,20 @@ export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUplo
       )}
       {fileInputs}
 
-      <Card>
+      <Card ref={paymentRef} className="scroll-mt-4 ring-2 ring-primary/20">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <WalletIcon className="size-5 text-primary" /> পেমেন্ট
+          </CardTitle>
+        </CardHeader>
         <CardContent className="flex items-end justify-between gap-3">
           <div className="text-sm text-muted-foreground">
             {formatNumber(ready.length)}টি ফাইল · মোট {formatNumber(pages)} পৃষ্ঠা
-            {busy && <span className="block">ফাইল আপলোড শেষ হলে পেমেন্ট করা যাবে।</span>}
+            {busy && <span className="block text-amber-700 dark:text-amber-400">ফাইল আপলোড শেষ হলে পেমেন্ট করা যাবে।</span>}
           </div>
           <div className="text-right">
-            <div className="text-xs text-muted-foreground">মোট</div>
-            <div className="text-2xl font-semibold tabular-nums">{formatTaka(total)}</div>
+            <div className="text-xs text-muted-foreground">সব মিলিয়ে</div>
+            <div className="text-3xl font-bold text-primary tabular-nums">{formatTaka(total)}</div>
           </div>
         </CardContent>
         <CardFooter className="flex-col gap-2">
@@ -296,6 +366,25 @@ export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUplo
           )}
         </CardFooter>
       </Card>
+
+      {/* With several files the payment card is far down; keep the total in reach. */}
+      {!paymentVisible && ready.length > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 p-3 shadow-lg backdrop-blur">
+          <div className="mx-auto flex max-w-md items-center justify-between gap-3">
+            <div>
+              <div className="text-xs text-muted-foreground">সব মিলিয়ে</div>
+              <div className="text-xl font-bold text-primary tabular-nums">{formatTaka(total)}</div>
+            </div>
+            <Button
+              size="lg"
+              className="h-11"
+              onClick={() => paymentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            >
+              পেমেন্টে যান <ArrowDownIcon />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

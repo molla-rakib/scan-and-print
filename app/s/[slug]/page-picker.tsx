@@ -97,7 +97,7 @@ export function PagePicker({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[92svh] flex-col gap-3 p-0 sm:max-w-2xl">
+      <DialogContent className="flex max-h-[92svh] flex-col gap-3 overflow-hidden p-0 sm:max-w-2xl">
         <DialogHeader className="px-4 pt-4">
           <DialogTitle>পৃষ্ঠা বাছুন</DialogTitle>
           <DialogDescription className="truncate">{fileName}</DialogDescription>
@@ -116,7 +116,7 @@ export function PagePicker({
             </span>
           </div>
           <form
-            className="flex gap-2"
+            className="flex items-center gap-2"
             onSubmit={(e) => {
               e.preventDefault()
               applyRanges()
@@ -132,9 +132,9 @@ export function PagePicker({
               aria-label="পৃষ্ঠার নম্বর লিখুন"
               aria-invalid={rangeError}
               inputMode="numeric"
-              className="h-8"
+              className="h-10 flex-1"
             />
-            <Button type="submit" size="sm" variant="secondary" disabled={!ranges.trim()}>
+            <Button type="submit" variant="secondary" className="h-10 shrink-0 px-4" disabled={!ranges.trim()}>
               বাছুন
             </Button>
           </form>
@@ -147,11 +147,13 @@ export function PagePicker({
           ))}
         </div>
 
-        <DialogFooter className="flex-row items-center justify-between gap-2 px-4 pb-4 sm:justify-between">
-          <span className="min-w-0 truncate text-sm text-muted-foreground">
+        {/* The dialog has no padding, so undo the footer's negative margins and let the grid's border separate it. */}
+        <DialogFooter className="mx-0 mb-0 flex-row items-center justify-between gap-3 border-t-0 px-4 py-3 sm:justify-between">
+          <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
             {selected.size ? formatPageSelection(sorted, pageCount) : "অন্তত একটি পৃষ্ঠা বাছুন"}
           </span>
           <Button
+            className="h-10 shrink-0 px-6"
             disabled={selected.size === 0}
             onClick={() => {
               onSave(sorted.length === pageCount ? [] : sorted)

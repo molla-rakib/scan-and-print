@@ -23,7 +23,7 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
       <SidebarInset className="bg-muted/50">
         <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b bg-background/90 px-4 backdrop-blur sm:px-6 lg:px-8">
           <SidebarTrigger className="-ml-1" />
-          <Logo className="text-sm md:hidden" />
+          <Logo className="h-8 md:hidden" />
           <span className="hidden text-sm text-muted-foreground md:inline">দোকান ড্যাশবোর্ড</span>
         </header>
         <div className="flex w-full flex-1 flex-col gap-8 p-4 sm:p-6 lg:p-8">{children}</div>

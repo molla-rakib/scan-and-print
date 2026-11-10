@@ -1,4 +1,4 @@
-//! Scan & Print agent. Runs on the shop PC: reports the installed printers to the server, picks up
+//! Mudron (মুদ্রণ) agent. Runs on the shop PC: reports the installed printers to the server, picks up
 //! paid jobs, prints them and reports the result. See `agent/README.md`.
 //!
 //! Started without arguments it is a tray app (what Windows starts at login). The subcommands are a
@@ -43,7 +43,7 @@ fn default_server() -> String {
 }
 
 const USAGE: &str = "\
-Scan & Print agent
+Mudron agent
 
 Usage:
   scan-print-agent                                Tray app (what starts with Windows)
@@ -93,7 +93,7 @@ fn main() -> ExitCode {
         "uninstall" => {
             return match install::uninstall() {
                 Ok(()) => {
-                    system::message("Scan & Print এজেন্ট এই কম্পিউটার থেকে সরানো হয়েছে।\nড্যাশবোর্ডের ডিভাইস পেজ থেকেও কম্পিউটারটি সরিয়ে দিন।", false);
+                    system::message("মুদ্রণ এজেন্ট এই কম্পিউটার থেকে সরানো হয়েছে।\nড্যাশবোর্ডের ডিভাইস পেজ থেকেও কম্পিউটারটি সরিয়ে দিন।", false);
                     ExitCode::SUCCESS
                 }
                 Err(e) => {
@@ -196,7 +196,7 @@ fn run_installer() -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             log::log(&format!("Install failed: {e}"));
-            system::message(&format!("Scan & Print এজেন্ট ইনস্টল করা যায়নি।\n\n{e}"), true);
+            system::message(&format!("মুদ্রণ এজেন্ট ইনস্টল করা যায়নি।\n\n{e}"), true);
             ExitCode::FAILURE
         }
     }

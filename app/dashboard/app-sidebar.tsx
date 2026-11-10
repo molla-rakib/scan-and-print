@@ -41,7 +41,7 @@ const nav = [
   { href: "/dashboard", label: "সারসংক্ষেপ", icon: LayoutDashboardIcon, color: "text-blue-600" },
   { href: "/dashboard/jobs", label: "প্রিন্ট অর্ডার", icon: ListOrderedIcon, color: "text-violet-600" },
   { href: "/dashboard/devices", label: "ডিভাইস", icon: PrinterIcon, color: "text-emerald-600" },
-  { href: "/dashboard/qr", label: "QR কোড", icon: QrCodeIcon, color: "text-amber-600" },
+  { href: "/dashboard/qr", label: "QR ও লিংক", icon: QrCodeIcon, color: "text-amber-600" },
   { href: "/dashboard/settings", label: "সেটিংস", icon: SettingsIcon, color: "text-sky-600" },
 ]
 

@@ -66,7 +66,7 @@ pub fn run(cfg: &Config, opts: &Options, stop: Arc<AtomicBool>, notify: impl Fn(
     let work_dir = std::env::temp_dir().join("ScanAndPrint");
     clear_dir(&work_dir);
 
-    log(&format!("Scan & Print agent {VERSION} connected to {}", cfg.server));
+    log(&format!("Mudron agent {VERSION} connected to {}", cfg.server));
     match (print::find_sumatra(), opts.dry_run) {
         (_, true) => log("Dry run: jobs are downloaded and marked completed without printing."),
         (Some(path), false) => log(&format!("Printing with {}", path.display())),

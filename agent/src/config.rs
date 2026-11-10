@@ -73,7 +73,7 @@ fn protect(data: &[u8]) -> io::Result<Vec<u8>> {
     let input = CRYPT_INTEGER_BLOB { cbData: data.len() as u32, pbData: data.as_ptr() as *mut u8 };
     let mut output = CRYPT_INTEGER_BLOB::default();
     unsafe {
-        CryptProtectData(&input, w!("Scan & Print agent token"), None, None, None, CRYPTPROTECT_UI_FORBIDDEN, &mut output)
+        CryptProtectData(&input, w!("Mudron agent token"), None, None, None, CRYPTPROTECT_UI_FORBIDDEN, &mut output)
             .map_err(io::Error::other)?;
         Ok(take_blob(output))
     }

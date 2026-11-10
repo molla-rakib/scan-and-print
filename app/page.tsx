@@ -1,5 +1,5 @@
-import Link from "next/link"
-import { Suspense } from "react"
+import Link from "next/link";
+import { Suspense } from "react";
 import {
   ArrowRightIcon,
   BanknoteIcon,
@@ -14,32 +14,54 @@ import {
   Trash2Icon,
   UsbIcon,
   WifiIcon,
-} from "lucide-react"
-import { BkashLogo } from "@/components/bkash"
-import { Logo } from "@/components/logo"
-import { HeaderActions, SignedInHeaderActions } from "./header-actions"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { Button } from "@/components/ui/button"
-import { formatNumber, formatTaka } from "@/lib/constants"
-import { env } from "@/lib/env"
-import { cn } from "@/lib/utils"
+} from "lucide-react";
+import { BkashLogo } from "@/components/bkash";
+import { Logo } from "@/components/logo";
+import { PrintingPress } from "@/components/printing-press";
+import { HeaderActions, SignedInHeaderActions } from "./header-actions";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Button } from "@/components/ui/button";
+import { formatNumber, formatTaka } from "@/lib/constants";
+import { env } from "@/lib/env";
+import { cn } from "@/lib/utils";
 
 const nav = [
   { href: "#how-it-works", label: "কীভাবে কাজ করে" },
   { href: "#features", label: "সুবিধা" },
   { href: "#pricing", label: "মূল্য" },
   { href: "#faq", label: "প্রশ্নোত্তর" },
-]
+];
 
 // The four CMYK inks, used as the page's accent system.
-const inks = ["bg-cyan-500", "bg-pink-500", "bg-yellow-400", "bg-foreground"]
+const inks = ["bg-cyan-500", "bg-pink-500", "bg-yellow-400", "bg-foreground"];
 
 const steps = [
-  { title: "QR স্ক্যান", text: "কাউন্টারে লাগানো পোস্টারের QR কোড গ্রাহক নিজের ফোনে স্ক্যান করে।", ink: "text-cyan-600" },
-  { title: "PDF আপলোড", text: "ফাইল দেয়, সাদা-কালো না রঙিন আর কয় কপি লাগবে তা বেছে নেয়।", ink: "text-pink-600" },
-  { title: "পেমেন্ট", text: "বিকাশে টাকা দেয়, নয়তো কাউন্টারে ক্যাশ দেয়।", ink: "text-yellow-600" },
-  { title: "প্রিন্ট!", text: "ঠিক মেশিনে নিজে থেকে প্রিন্ট হয়। গ্রাহক টোকেন দেখিয়ে কাগজ নিয়ে যায়।", ink: "text-foreground" },
-]
+  {
+    title: "QR স্ক্যান",
+    text: "কাউন্টারে লাগানো পোস্টারের QR কোড গ্রাহক নিজের ফোনে স্ক্যান করে।",
+    ink: "text-cyan-600",
+  },
+  {
+    title: "PDF আপলোড",
+    text: "ফাইল দেয়, সাদা-কালো না রঙিন আর কয় কপি লাগবে তা বেছে নেয়।",
+    ink: "text-pink-600",
+  },
+  {
+    title: "পেমেন্ট",
+    text: "বিকাশে টাকা দেয়, নয়তো কাউন্টারে ক্যাশ দেয়।",
+    ink: "text-yellow-600",
+  },
+  {
+    title: "প্রিন্ট!",
+    text: "ঠিক মেশিনে নিজে থেকে প্রিন্ট হয়। গ্রাহক টোকেন দেখিয়ে কাগজ নিয়ে যায়।",
+    ink: "text-foreground",
+  },
+];
 
 const ticker = [
   "টোকেন #২৭ · assignment.pdf · ১২ পৃষ্ঠা · সাদা-কালো",
@@ -48,28 +70,46 @@ const ticker = [
   "টোকেন #৩০ · thesis-ch3.pdf · ৪৮ পৃষ্ঠা · সাদা-কালো",
   "টোকেন #৩১ · admit-card.pdf · ১ পৃষ্ঠা · রঙিন",
   "টোকেন #৩২ · lab-report.pdf · ৯ পৃষ্ঠা · ২ কপি",
-]
+];
 
 const before = [
   { icon: UsbIcon, text: "পেনড্রাইভে ভাইরাস, ফাইল খুঁজতে খুঁজতে লাইন লম্বা" },
-  { icon: MessageCircleIcon, text: "হোয়াটসঅ্যাপে শত শত ফাইল, কারটা কোনটা বোঝা দায়" },
+  {
+    icon: MessageCircleIcon,
+    text: "হোয়াটসঅ্যাপে শত শত ফাইল, কারটা কোনটা বোঝা দায়",
+  },
   { icon: BanknoteIcon, text: "খুচরা টাকার হিসাব মেলে না দিনের শেষে" },
-  { icon: FileTextIcon, text: "গ্রাহকের NID, সার্টিফিকেট পড়ে থাকে আপনার কম্পিউটারে" },
-]
+  {
+    icon: FileTextIcon,
+    text: "গ্রাহকের NID, সার্টিফিকেট পড়ে থাকে আপনার কম্পিউটারে",
+  },
+];
 
 const after = [
   "গ্রাহক নিজেই ফাইল পাঠায়, নিজেই পেমেন্ট করে",
   "প্রতিটা অর্ডারের আলাদা টোকেন নম্বর",
   "প্রতিটা টাকার হিসাব ড্যাশবোর্ডে",
   "প্রিন্টের পরপরই ফাইল নিজে থেকে মুছে যায়",
-]
+];
 
 const requirements = [
-  { icon: MonitorIcon, title: "একটি Windows কম্পিউটার", text: "দোকান খোলা থাকলে চালু থাকে এমন" },
-  { icon: PrinterIcon, title: "ইনস্টল করা প্রিন্টার", text: "Word থেকে প্রিন্ট হলেই চলবে" },
+  {
+    icon: MonitorIcon,
+    title: "একটি Windows কম্পিউটার",
+    text: "দোকান খোলা থাকলে চালু থাকে এমন",
+  },
+  {
+    icon: PrinterIcon,
+    title: "ইনস্টল করা প্রিন্টার",
+    text: "Word থেকে প্রিন্ট হলেই চলবে",
+  },
   { icon: WifiIcon, title: "ইন্টারনেট", text: "ব্রডব্যান্ড বা মোবাইল ডেটা" },
-  { icon: CpuIcon, title: "আমাদের প্রিন্ট এজেন্ট", text: "একবার ইনস্টল, একটা কোড, ব্যাস" },
-]
+  {
+    icon: CpuIcon,
+    title: "আমাদের প্রিন্ট এজেন্ট",
+    text: "একবার ইনস্টল, একটা কোড, ব্যাস",
+  },
+];
 
 const faqs = [
   {
@@ -90,13 +130,13 @@ const faqs = [
   },
   {
     q: "প্রিন্টে কাগজ আটকে গেলে কী করব?",
-    a: "ড্যাশবোর্ড থেকে অর্ডারটি আবার প্রিন্ট করতে পারবেন, অথবা হাতে প্রিন্ট করে \"সম্পন্ন\" হিসেবে চিহ্নিত করতে পারবেন।",
+    a: 'ড্যাশবোর্ড থেকে অর্ডারটি আবার প্রিন্ট করতে পারবেন, অথবা হাতে প্রিন্ট করে "সম্পন্ন" হিসেবে চিহ্নিত করতে পারবেন।',
   },
-]
+];
 
 export default function HomePage() {
-  const fee = env.deviceMonthlyFee
-  const trialDays = env.trialDays
+  const fee = env.deviceMonthlyFee;
+  const trialDays = env.trialDays;
 
   return (
     <div className="flex flex-1 flex-col bg-background">
@@ -108,7 +148,13 @@ export default function HomePage() {
           </Link>
           <nav className="hidden items-center gap-1 md:flex">
             {nav.map((item) => (
-              <Button key={item.href} variant="ghost" size="sm" render={<a href={item.href} />} nativeButton={false}>
+              <Button
+                key={item.href}
+                variant="ghost"
+                size="sm"
+                render={<a href={item.href} />}
+                nativeButton={false}
+              >
                 {item.label}
               </Button>
             ))}
@@ -129,7 +175,10 @@ export default function HomePage() {
               <span className="inline-flex items-center gap-3 rounded-full border border-foreground/15 bg-background px-3 py-1 text-sm">
                 <span className="flex gap-1">
                   {inks.map((ink) => (
-                    <span key={ink} className={cn("size-2.5 rounded-full", ink)} />
+                    <span
+                      key={ink}
+                      className={cn("size-2.5 rounded-full", ink)}
+                    />
                   ))}
                 </span>
                 প্রিন্ট ও ফটোকপি দোকানের জন্য
@@ -140,7 +189,8 @@ export default function HomePage() {
                 <span className="marker px-1">QR কোড</span> দিয়েই প্রিন্ট।
               </h1>
               <p className="max-w-xl text-lg leading-relaxed text-pretty text-foreground/70">
-                গ্রাহক QR স্ক্যান করে PDF পাঠায়, বিকাশে টাকা দেয় — আর আপনার দোকানের প্রিন্টার নিজে থেকেই ছাপা শুরু করে। আপনি শুধু কাগজটা
+                গ্রাহক QR স্ক্যান করে PDF পাঠায়, বিকাশে টাকা দেয় — আর আপনার
+                দোকানের প্রিন্টার নিজে থেকেই ছাপা শুরু করে। আপনি শুধু কাগজটা
                 হাতে তুলে দেন।
               </p>
               <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
@@ -150,7 +200,8 @@ export default function HomePage() {
                   render={<Link href="/login" />}
                   nativeButton={false}
                 >
-                  {formatNumber(trialDays)} দিন ফ্রি চালিয়ে দেখুন <ArrowRightIcon />
+                  {formatNumber(trialDays)} দিন ফ্রি চালিয়ে দেখুন{" "}
+                  <ArrowRightIcon />
                 </Button>
                 <Button
                   size="lg"
@@ -168,9 +219,16 @@ export default function HomePage() {
                   { value: "০%", label: "অর্ডারে কমিশন" },
                   { value: "২৪ ঘ.", label: "সর্বোচ্চ ফাইল রাখা" },
                 ].map((stat) => (
-                  <div key={stat.label} className="flex flex-col gap-0.5 px-3 first:pl-0">
-                    <dt className="order-2 text-xs text-muted-foreground">{stat.label}</dt>
-                    <dd className="order-1 text-2xl font-bold tracking-tight">{stat.value}</dd>
+                  <div
+                    key={stat.label}
+                    className="flex flex-col gap-0.5 px-3 first:pl-0"
+                  >
+                    <dt className="order-2 text-xs text-muted-foreground">
+                      {stat.label}
+                    </dt>
+                    <dd className="order-1 text-2xl font-bold tracking-tight">
+                      {stat.value}
+                    </dd>
                   </div>
                 ))}
               </dl>
@@ -180,7 +238,10 @@ export default function HomePage() {
         </section>
 
         {/* Live queue ticker */}
-        <div className="overflow-hidden border-b bg-foreground py-3 text-background" aria-hidden>
+        <div
+          className="overflow-hidden border-b bg-foreground py-3 text-background"
+          aria-hidden
+        >
           <div className="animate-ticker flex w-max gap-10 font-mono text-sm whitespace-nowrap">
             {[...ticker, ...ticker].map((item, i) => (
               <span key={i} className="flex items-center gap-10">
@@ -207,11 +268,16 @@ export default function HomePage() {
               </span>
               <ul className="flex flex-col gap-5">
                 {before.map((item) => (
-                  <li key={item.text} className="flex items-start gap-3 text-foreground/70">
+                  <li
+                    key={item.text}
+                    className="flex items-start gap-3 text-foreground/70"
+                  >
                     <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground">
                       <item.icon className="size-4" />
                     </span>
-                    <span className="pt-1.5 decoration-rose-500/60 decoration-2 md:line-through">{item.text}</span>
+                    <span className="pt-1.5 decoration-rose-500/60 decoration-2 md:line-through">
+                      {item.text}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -235,20 +301,33 @@ export default function HomePage() {
         </section>
 
         {/* How it works: tear-off tickets */}
-        <section id="how-it-works" className="bg-paper scroll-mt-16 border-y border-foreground/10">
+        <section
+          id="how-it-works"
+          className="bg-paper scroll-mt-16 border-y border-foreground/10"
+        >
           <div className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
-            <SectionHeading eyebrow="কীভাবে কাজ করে" title="চার ধাপ। দোকানদারের হাত লাগে না একবারও।" />
+            <SectionHeading
+              eyebrow="কীভাবে কাজ করে"
+              title="চার ধাপ। দোকানদারের হাত লাগে না একবারও।"
+            />
             <ol className="mt-14 grid overflow-hidden rounded-2xl border border-foreground/15 bg-background md:grid-cols-4">
               {steps.map((step, i) => (
                 <li
                   key={step.title}
                   className="relative flex flex-col gap-3 border-dashed border-foreground/25 p-6 not-last:border-b md:p-7 md:not-last:border-r md:not-last:border-b-0"
                 >
-                  <span className={cn("font-mono text-6xl leading-none font-bold tracking-tighter", step.ink)}>
+                  <span
+                    className={cn(
+                      "font-mono text-6xl leading-none font-bold tracking-tighter",
+                      step.ink,
+                    )}
+                  >
                     {formatNumber(i + 1).padStart(2, "০")}
                   </span>
                   <h3 className="text-xl font-bold">{step.title}</h3>
-                  <p className="text-sm leading-relaxed text-muted-foreground">{step.text}</p>
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    {step.text}
+                  </p>
                   {i < steps.length - 1 && (
                     <span className="absolute -right-3 -bottom-3 z-10 hidden size-6 rounded-full border border-foreground/15 bg-[oklch(0.985_0.008_85)] md:-top-3 md:bottom-auto md:block" />
                   )}
@@ -264,22 +343,46 @@ export default function HomePage() {
         {/* Features bento */}
         <section id="features" className="scroll-mt-16">
           <div className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
-            <SectionHeading eyebrow="দোকান মালিকের সুবিধা" title="কম ঝামেলা, বেশি গ্রাহক, পরিষ্কার হিসাব" />
+            <SectionHeading
+              eyebrow="দোকান মালিকের সুবিধা"
+              title="কম ঝামেলা, বেশি গ্রাহক, পরিষ্কার হিসাব"
+            />
             <div className="mt-14 grid gap-4 lg:grid-cols-6">
               {/* Routing */}
               <BentoCard className="relative overflow-hidden bg-foreground text-background lg:col-span-4">
-                <div aria-hidden className="bg-halftone pointer-events-none absolute inset-0 text-background/15" />
+                <div
+                  aria-hidden
+                  className="bg-halftone pointer-events-none absolute inset-0 text-background/15"
+                />
                 <div className="relative grid gap-8 sm:grid-cols-2 sm:items-center">
                   <div className="flex flex-col gap-3">
-                    <h3 className="text-2xl font-bold">ঠিক মেশিন নিজেই বেছে নেয়</h3>
+                    <h3 className="text-2xl font-bold">
+                      ঠিক মেশিন নিজেই বেছে নেয়
+                    </h3>
                     <p className="leading-relaxed text-background/65">
-                      রঙিন অর্ডার যায় রঙিন প্রিন্টারে, সাদা-কালো যায় কম খরচের মেশিনে। কোন মেশিন ফাঁকা আছে, কোনটা বন্ধ — সব দেখে নেয়।
+                      রঙিন অর্ডার যায় রঙিন প্রিন্টারে, সাদা-কালো যায় কম খরচের
+                      মেশিনে। কোন মেশিন ফাঁকা আছে, কোনটা বন্ধ — সব দেখে নেয়।
                     </p>
                   </div>
-                  <div className="flex flex-col gap-3 font-mono text-sm" aria-hidden>
-                    <RouteRow from="সাদা-কালো · ১২ পৃ." to="Canon iR 2520" dot="bg-background" />
-                    <RouteRow from="রঙিন · ২ পৃ." to="Epson L3250" dot="bg-pink-500" />
-                    <RouteRow from="সাদা-কালো · ৪৮ পৃ." to="HP LaserJet" dot="bg-background" />
+                  <div
+                    className="flex flex-col gap-3 font-mono text-sm"
+                    aria-hidden
+                  >
+                    <RouteRow
+                      from="সাদা-কালো · ১২ পৃ."
+                      to="Canon iR 2520"
+                      dot="bg-background"
+                    />
+                    <RouteRow
+                      from="রঙিন · ২ পৃ."
+                      to="Epson L3250"
+                      dot="bg-pink-500"
+                    />
+                    <RouteRow
+                      from="সাদা-কালো · ৪৮ পৃ."
+                      to="HP LaserJet"
+                      dot="bg-background"
+                    />
                   </div>
                 </div>
               </BentoCard>
@@ -288,7 +391,9 @@ export default function HomePage() {
               <BentoCard className="flex flex-col justify-between gap-6 bg-[#E2136E] text-white lg:col-span-2">
                 <BkashLogo className="self-start px-2 py-1 [&_img]:h-6" />
                 <div className="flex flex-col gap-2">
-                  <h3 className="text-xl font-bold">টাকা আসে সরাসরি আপনার কাছে</h3>
+                  <h3 className="text-xl font-bold">
+                    টাকা আসে সরাসরি আপনার কাছে
+                  </h3>
                   <p className="text-sm leading-relaxed text-white/80">
                     আপনার নিজের বিকাশ মার্চেন্ট অ্যাকাউন্টে। মাঝখানে আমরা নেই।
                   </p>
@@ -300,9 +405,12 @@ export default function HomePage() {
                 <span className="flex size-11 items-center justify-center rounded-full bg-foreground text-yellow-300">
                   <BellRingIcon className="size-5" />
                 </span>
-                <h3 className="text-xl font-bold">ক্যাশ অর্ডারে টুং করে শব্দ</h3>
+                <h3 className="text-xl font-bold">
+                  ক্যাশ অর্ডারে টুং করে শব্দ
+                </h3>
                 <p className="text-sm leading-relaxed text-foreground/75">
-                  ক্যাশ অর্ডার সাথে সাথে প্রিন্ট হয় — কোনো ক্লিক লাগে না। ড্যাশবোর্ডে গ্রাহকের নাম, মোবাইল ও কত টাকা নিতে হবে দেখা যায়।
+                  ক্যাশ অর্ডার সাথে সাথে প্রিন্ট হয় — কোনো ক্লিক লাগে না।
+                  ড্যাশবোর্ডে গ্রাহকের নাম, মোবাইল ও কত টাকা নিতে হবে দেখা যায়।
                 </p>
               </BentoCard>
 
@@ -310,18 +418,27 @@ export default function HomePage() {
               <BentoCard className="flex flex-col gap-4 border border-foreground/15 lg:col-span-2">
                 <h3 className="text-xl font-bold">গ্রাহক ফোনেই দেখে লাইন</h3>
                 <p className="text-sm leading-relaxed text-muted-foreground">
-                  আগে কয়টা অর্ডার আছে, প্রিন্ট শুরু হলো কিনা — সব লাইভ। কাউন্টারে বারবার জিজ্ঞেস করা বন্ধ।
+                  আগে কয়টা অর্ডার আছে, প্রিন্ট শুরু হলো কিনা — সব লাইভ।
+                  কাউন্টারে বারবার জিজ্ঞেস করা বন্ধ।
                 </p>
-                <div className="mt-auto flex flex-col gap-1.5 font-mono text-sm" aria-hidden>
+                <div
+                  className="mt-auto flex flex-col gap-1.5 font-mono text-sm"
+                  aria-hidden
+                >
                   {[
                     { t: "#২৭", s: "প্রিন্ট হচ্ছে", c: "bg-cyan-500" },
                     { t: "#২৮", s: "লাইনে · ১ম", c: "bg-yellow-400" },
                     { t: "#২৯", s: "লাইনে · ২য়", c: "bg-muted-foreground/40" },
                   ].map((row) => (
-                    <div key={row.t} className="flex items-center gap-2 rounded-md bg-muted px-3 py-1.5">
+                    <div
+                      key={row.t}
+                      className="flex items-center gap-2 rounded-md bg-muted px-3 py-1.5"
+                    >
                       <span className={cn("size-2 rounded-full", row.c)} />
                       <span className="font-semibold">{row.t}</span>
-                      <span className="ml-auto text-muted-foreground">{row.s}</span>
+                      <span className="ml-auto text-muted-foreground">
+                        {row.s}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -329,11 +446,26 @@ export default function HomePage() {
 
               {/* Any printer */}
               <BentoCard className="flex flex-col gap-4 border border-foreground/15 lg:col-span-2">
-                <h3 className="text-xl font-bold">যেকোনো প্রিন্টার, যেকোনো ফটোকপি মেশিন</h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">Windows থেকে প্রিন্ট নিলেই হলো।</p>
+                <h3 className="text-xl font-bold">
+                  যেকোনো প্রিন্টার, যেকোনো ফটোকপি মেশিন
+                </h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  Windows থেকে প্রিন্ট নিলেই হলো।
+                </p>
                 <div className="mt-auto flex flex-wrap gap-2" aria-hidden>
-                  {["HP", "Canon", "Epson", "Brother", "Ricoh", "Konica", "Xerox"].map((brand) => (
-                    <span key={brand} className="rounded-full border border-foreground/15 px-3 py-1 text-sm font-semibold">
+                  {[
+                    "HP",
+                    "Canon",
+                    "Epson",
+                    "Brother",
+                    "Ricoh",
+                    "Konica",
+                    "Xerox",
+                  ].map((brand) => (
+                    <span
+                      key={brand}
+                      className="rounded-full border border-foreground/15 px-3 py-1 text-sm font-semibold"
+                    >
                       {brand}
                     </span>
                   ))}
@@ -346,13 +478,17 @@ export default function HomePage() {
                   <ShieldCheckIcon className="size-7" />
                 </span>
                 <div className="flex flex-col gap-1">
-                  <h3 className="text-xl font-bold">গ্রাহকের ফাইল থাকে না আপনার কম্পিউটারে</h3>
+                  <h3 className="text-xl font-bold">
+                    গ্রাহকের ফাইল থাকে না আপনার কম্পিউটারে
+                  </h3>
                   <p className="text-sm leading-relaxed text-muted-foreground">
-                    NID, সার্টিফিকেট, ব্যাংক স্টেটমেন্ট — প্রিন্ট শেষ হওয়ামাত্র ফাইল নিজে থেকে মুছে যায়। গ্রাহক নিশ্চিন্তে পাঠাতে পারে।
+                    NID, সার্টিফিকেট, ব্যাংক স্টেটমেন্ট — প্রিন্ট শেষ হওয়ামাত্র
+                    ফাইল নিজে থেকে মুছে যায়। গ্রাহক নিশ্চিন্তে পাঠাতে পারে।
                   </p>
                 </div>
                 <span className="flex shrink-0 items-center gap-2 self-start rounded-full bg-background px-4 py-2 font-mono text-sm whitespace-nowrap sm:ml-auto sm:self-center">
-                  <Trash2Icon className="size-4 text-rose-500" /> NID-copy.pdf মুছে ফেলা হয়েছে
+                  <Trash2Icon className="size-4 text-rose-500" /> NID-copy.pdf
+                  মুছে ফেলা হয়েছে
                 </span>
               </BentoCard>
             </div>
@@ -368,8 +504,8 @@ export default function HomePage() {
                 নতুন কোনো মেশিন কিনতে হবে না
               </h2>
               <p className="text-lg leading-relaxed text-muted-foreground">
-                দোকানে এখন যা আছে, তা দিয়েই শুরু। প্রিন্ট এজেন্ট কম্পিউটারের কোণে চুপচাপ বসে থাকে আর অর্ডার এলেই ঠিক প্রিন্টারে পাঠিয়ে
-                দেয়।
+                দোকানে এখন যা আছে, তা দিয়েই শুরু। প্রিন্ট এজেন্ট কম্পিউটারের
+                কোণে চুপচাপ বসে থাকে আর অর্ডার এলেই ঠিক প্রিন্টারে পাঠিয়ে দেয়।
               </p>
             </div>
             <ul className="flex flex-col divide-y divide-foreground/10 rounded-2xl border border-foreground/15 bg-background">
@@ -400,17 +536,23 @@ export default function HomePage() {
                 <span className="marker px-1">এর বেশি এক টাকাও না।</span>
               </h2>
               <p className="text-lg leading-relaxed text-muted-foreground">
-                অর্ডারপ্রতি কমিশন নেই, সেটআপ ফি নেই। প্রথম {formatNumber(trialDays)} দিন একদম ফ্রি — কোনো কার্ড বা পেমেন্ট লাগবে না।
+                অর্ডারপ্রতি কমিশন নেই, সেটআপ ফি নেই। প্রথম{" "}
+                {formatNumber(trialDays)} দিন একদম ফ্রি — কোনো কার্ড বা পেমেন্ট
+                লাগবে না।
               </p>
             </div>
             <div className="mx-auto w-full max-w-sm rotate-1 drop-shadow-[0_18px_30px_oklch(0.18_0.02_264/0.15)]">
               <div className="edge-zigzag bg-background px-7 pt-8 font-mono">
                 <div className="flex flex-col items-center gap-1 border-b border-dashed border-foreground/30 pb-5 text-center">
-                  <Logo className="font-sans" />
-                  <span className="text-xs text-muted-foreground">মাসিক বিল · প্রতি মেশিন</span>
+                  <Logo className="h-12" />
+                  <span className="text-xs text-muted-foreground">
+                    মাসিক বিল · প্রতি মেশিন
+                  </span>
                 </div>
                 <div className="flex items-baseline justify-center gap-1 py-6">
-                  <span className="text-6xl font-bold tracking-tighter">{formatTaka(fee)}</span>
+                  <span className="text-6xl font-bold tracking-tighter">
+                    {formatTaka(fee)}
+                  </span>
                   <span className="text-muted-foreground">/মাস</span>
                 </div>
                 <ul className="flex flex-col gap-2.5 border-y border-dashed border-foreground/30 py-5 text-sm">
@@ -437,17 +579,27 @@ export default function HomePage() {
                     <span>{formatTaka(fee * 2)}/মাস</span>
                   </div>
                 </div>
-                <Button size="lg" className="h-12 w-full font-sans text-base" render={<Link href="/login" />} nativeButton={false}>
+                <Button
+                  size="lg"
+                  className="h-12 w-full font-sans text-base"
+                  render={<Link href="/login" />}
+                  nativeButton={false}
+                >
                   ফ্রি ট্রায়াল শুরু করুন
                 </Button>
-                <p className="pt-4 text-center text-xs text-muted-foreground">ধন্যবাদ, আবার আসবেন ✦</p>
+                <p className="pt-4 text-center text-xs text-muted-foreground">
+                  ধন্যবাদ, আবার আসবেন ✦
+                </p>
               </div>
             </div>
           </div>
         </section>
 
         {/* FAQ */}
-        <section id="faq" className="scroll-mt-16 border-t border-foreground/10">
+        <section
+          id="faq"
+          className="scroll-mt-16 border-t border-foreground/10"
+        >
           <div className="mx-auto grid max-w-6xl gap-10 px-4 py-20 md:px-6 md:py-28 lg:grid-cols-[0.8fr_1.2fr]">
             <div className="flex flex-col gap-4">
               <Eyebrow>প্রশ্নোত্তর</Eyebrow>
@@ -457,9 +609,17 @@ export default function HomePage() {
             </div>
             <Accordion>
               {faqs.map((faq) => (
-                <AccordionItem key={faq.q} value={faq.q} className="border-foreground/15">
-                  <AccordionTrigger className="py-5 text-lg font-semibold">{faq.q}</AccordionTrigger>
-                  <AccordionContent className="text-base leading-relaxed text-muted-foreground">{faq.a}</AccordionContent>
+                <AccordionItem
+                  key={faq.q}
+                  value={faq.q}
+                  className="border-foreground/15"
+                >
+                  <AccordionTrigger className="py-5 text-lg font-semibold">
+                    {faq.q}
+                  </AccordionTrigger>
+                  <AccordionContent className="text-base leading-relaxed text-muted-foreground">
+                    {faq.a}
+                  </AccordionContent>
                 </AccordionItem>
               ))}
             </Accordion>
@@ -469,8 +629,14 @@ export default function HomePage() {
         {/* CTA */}
         <section className="px-4 pb-20 md:px-6">
           <div className="relative mx-auto flex max-w-6xl flex-col items-start gap-8 overflow-hidden rounded-3xl bg-foreground px-6 py-14 text-background md:flex-row md:items-end md:justify-between md:px-14 md:py-20">
-            <div aria-hidden className="bg-halftone pointer-events-none absolute inset-0 text-cyan-400/25" />
-            <div aria-hidden className="absolute top-0 right-0 left-0 flex h-1.5">
+            <div
+              aria-hidden
+              className="bg-halftone pointer-events-none absolute inset-0 text-cyan-400/25"
+            />
+            <div
+              aria-hidden
+              className="absolute top-0 right-0 left-0 flex h-1.5"
+            >
               {inks.slice(0, 3).map((ink) => (
                 <span key={ink} className={cn("flex-1", ink)} />
               ))}
@@ -480,7 +646,8 @@ export default function HomePage() {
                 আজ দোকান খোলার আগেই সেটআপ হয়ে যাবে
               </h2>
               <p className="text-lg text-background/65">
-                Gmail দিয়ে লগইন, দোকানের নাম, প্রিন্টার যুক্ত — ১০ মিনিটে প্রথম অর্ডার।
+                Gmail দিয়ে লগইন, দোকানের নাম, প্রিন্টার যুক্ত — ১০ মিনিটে প্রথম
+                অর্ডার।
               </p>
             </div>
             <Button
@@ -497,19 +664,23 @@ export default function HomePage() {
 
       <footer className="border-t border-foreground/10">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm text-muted-foreground md:flex-row md:px-6">
-          <Logo className="text-foreground" />
+          <Logo />
           <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2">
             {nav.map((item) => (
-              <a key={item.href} href={item.href} className="hover:text-foreground">
+              <a
+                key={item.href}
+                href={item.href}
+                className="hover:text-foreground"
+              >
                 {item.label}
               </a>
             ))}
           </nav>
-          <span>© স্ক্যান অ্যান্ড প্রিন্ট</span>
+          <span>© মুদ্রণ</span>
         </div>
       </footer>
     </div>
-  )
+  );
 }
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
@@ -518,23 +689,47 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
       <span className="h-px w-6 bg-primary" />
       {children}
     </span>
-  )
+  );
 }
 
-function SectionHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
+function SectionHeading({
+  eyebrow,
+  title,
+}: {
+  eyebrow: string;
+  title: string;
+}) {
   return (
     <div className="flex max-w-3xl flex-col gap-4">
       <Eyebrow>{eyebrow}</Eyebrow>
-      <h2 className="text-3xl leading-tight font-extrabold tracking-tight text-balance md:text-5xl">{title}</h2>
+      <h2 className="text-3xl leading-tight font-extrabold tracking-tight text-balance md:text-5xl">
+        {title}
+      </h2>
     </div>
-  )
+  );
 }
 
-function BentoCard({ className, children }: { className?: string; children: React.ReactNode }) {
-  return <div className={cn("rounded-2xl p-6 md:p-8", className)}>{children}</div>
+function BentoCard({
+  className,
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={cn("rounded-2xl p-6 md:p-8", className)}>{children}</div>
+  );
 }
 
-function RouteRow({ from, to, dot }: { from: string; to: string; dot: string }) {
+function RouteRow({
+  from,
+  to,
+  dot,
+}: {
+  from: string;
+  to: string;
+  dot: string;
+}) {
   return (
     <div className="flex items-center gap-2">
       <span className="flex items-center gap-2 rounded-md bg-background/10 px-2.5 py-1.5 whitespace-nowrap">
@@ -547,106 +742,94 @@ function RouteRow({ from, to, dot }: { from: string; to: string; dot: string }) 
         {to}
       </span>
     </div>
-  )
+  );
 }
 
 /** Printer's crop/registration mark, used as a corner ornament. */
 function RegistrationMark({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={cn("size-6 text-foreground/25", className)} aria-hidden>
-      <circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" strokeWidth="1" />
+    <svg
+      viewBox="0 0 24 24"
+      className={cn("size-6 text-foreground/25", className)}
+      aria-hidden
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1"
+      />
       <path d="M12 0v24M0 12h24" stroke="currentColor" strokeWidth="1" />
     </svg>
-  )
+  );
 }
 
 /** A deterministic, decorative QR-like pattern (21×21 with three finder squares). */
-const QR_SIZE = 21
+const QR_SIZE = 21;
 const qrCells = Array.from({ length: QR_SIZE * QR_SIZE }, (_, i) => {
-  const x = i % QR_SIZE
-  const y = Math.floor(i / QR_SIZE)
+  const x = i % QR_SIZE;
+  const y = Math.floor(i / QR_SIZE);
   const finder = (fx: number, fy: number) => {
-    const dx = x - fx
-    const dy = y - fy
-    if (dx < 0 || dy < 0 || dx > 6 || dy > 6) return null
-    const ring = dx === 0 || dy === 0 || dx === 6 || dy === 6
-    const core = dx >= 2 && dx <= 4 && dy >= 2 && dy <= 4
-    return ring || core
-  }
-  const f = finder(0, 0) ?? finder(14, 0) ?? finder(0, 14)
-  if (f !== null) return f
-  if ((x === 7 || y === 7) && (x < 8 || y < 8)) return false
-  if (x === 13 && y < 8) return false
-  if (y === 13 && x < 8) return false
-  return (x * 7 + y * 13 + x * y * 3) % 5 < 2
-})
+    const dx = x - fx;
+    const dy = y - fy;
+    if (dx < 0 || dy < 0 || dx > 6 || dy > 6) return null;
+    const ring = dx === 0 || dy === 0 || dx === 6 || dy === 6;
+    const core = dx >= 2 && dx <= 4 && dy >= 2 && dy <= 4;
+    return ring || core;
+  };
+  const f = finder(0, 0) ?? finder(14, 0) ?? finder(0, 14);
+  if (f !== null) return f;
+  if ((x === 7 || y === 7) && (x < 8 || y < 8)) return false;
+  if (x === 13 && y < 8) return false;
+  if (y === 13 && x < 8) return false;
+  return (x * 7 + y * 13 + x * y * 3) % 5 < 2;
+});
 
 function FakeQr({ className }: { className?: string }) {
   return (
-    <svg viewBox={`0 0 ${QR_SIZE} ${QR_SIZE}`} className={className} aria-hidden shapeRendering="crispEdges">
+    <svg
+      viewBox={`0 0 ${QR_SIZE} ${QR_SIZE}`}
+      className={className}
+      aria-hidden
+      shapeRendering="crispEdges"
+    >
       {qrCells.map((on, i) =>
-        on ? <rect key={i} x={i % QR_SIZE} y={Math.floor(i / QR_SIZE)} width="1" height="1" fill="currentColor" /> : null,
+        on ? (
+          <rect
+            key={i}
+            x={i % QR_SIZE}
+            y={Math.floor(i / QR_SIZE)}
+            width="1"
+            height="1"
+            fill="currentColor"
+          />
+        ) : null,
       )}
     </svg>
-  )
+  );
 }
 
 /** Hero illustration: a printer feeding out the customer's order slip, with the QR poster beside it. */
 function PrinterScene() {
   return (
-    <div className="relative mx-auto hidden w-full max-w-[22rem] pt-6 pb-4 md:block" aria-hidden>
+    <div
+      className="relative mx-auto w-full max-w-md pt-4 pb-6 lg:max-w-none"
+      aria-hidden
+    >
       {/* QR poster */}
-      <div className="absolute -top-2 -left-6 z-20 w-36 -rotate-6 rounded-xl border border-foreground/15 bg-background p-3 shadow-xl sm:-left-16">
+      <div className="absolute top-0 -left-2 z-20 hidden w-28 -rotate-6 rounded-xl border border-foreground/15 bg-background p-2.5 shadow-xl md:block lg:-left-10">
         <FakeQr className="w-full text-foreground" />
-        <p className="pt-2 text-center text-xs font-semibold">স্ক্যান করে প্রিন্ট দিন</p>
+        <p className="pt-1.5 text-center text-[0.7rem] font-semibold">
+          স্ক্যান করে প্রিন্ট দিন
+        </p>
       </div>
 
-      {/* Printer body */}
-      <div className="relative z-10 ml-auto w-[86%] rounded-2xl bg-foreground p-4 pb-5 text-background shadow-2xl">
-        <div className="flex items-center justify-between">
-          <div className="flex gap-1.5">
-            {inks.slice(0, 3).map((ink) => (
-              <span key={ink} className={cn("h-1.5 w-5 rounded-full", ink)} />
-            ))}
-          </div>
-          <div className="flex items-center gap-2 rounded-md bg-background/10 px-2 py-1 font-mono text-xs">
-            <span className="animate-blink size-1.5 rounded-full bg-emerald-400" />
-            প্রিন্ট হচ্ছে
-          </div>
-        </div>
-        <div className="mt-4 h-2.5 rounded-full bg-black/60" />
-      </div>
-
-      {/* Paper coming out */}
-      <div className="relative z-0 -mt-2 ml-auto h-[19rem] w-[86%] overflow-hidden px-3">
-        <div className="animate-paper-feed rounded-b-md border border-t-0 border-foreground/10 bg-background px-5 pt-6 pb-5 font-mono text-sm shadow-lg">
-          <div className="flex items-center justify-between border-b border-dashed border-foreground/30 pb-3">
-            <span className="font-sans font-semibold">রহিম ফটোকপি</span>
-            <span className="text-xs text-muted-foreground">নীলক্ষেত</span>
-          </div>
-          <div className="flex flex-col items-center py-4">
-            <span className="text-xs text-muted-foreground">টোকেন</span>
-            <span className="text-6xl leading-none font-bold tracking-tighter">২৭</span>
-          </div>
-          <div className="flex flex-col gap-1.5 border-t border-dashed border-foreground/30 pt-3 text-xs">
-            <div className="flex justify-between">
-              <span>assignment.pdf</span>
-              <span>১২ পৃ.</span>
-            </div>
-            <div className="flex justify-between">
-              <span>সাদা-কালো × ২ কপি</span>
-              <span>৳৭২</span>
-            </div>
-            <div className="flex items-center justify-between pt-1 font-semibold text-[#E2136E]">
-              <span>বিকাশে পরিশোধিত</span>
-              <CheckIcon className="size-4" />
-            </div>
-          </div>
-        </div>
-      </div>
+      <PrintingPress className="relative z-10 w-full drop-shadow-xl" />
 
       {/* Cash alert sticky note */}
-      <div className="absolute right-0 bottom-0 z-20 flex rotate-3 items-center gap-2 rounded-lg bg-yellow-300 px-3 py-2.5 text-foreground shadow-lg sm:-right-8">
+      <div className="absolute right-0 bottom-0 z-20 hidden rotate-3 items-center gap-2 rounded-lg bg-yellow-300 px-3 py-2.5 text-foreground shadow-lg md:flex lg:-right-6">
         <BellRingIcon className="size-4" />
         <div className="leading-tight">
           <div className="text-xs">নতুন ক্যাশ অর্ডার</div>
@@ -654,5 +837,5 @@ function PrinterScene() {
         </div>
       </div>
     </div>
-  )
+  );
 }

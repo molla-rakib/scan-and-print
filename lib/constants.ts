@@ -43,6 +43,15 @@ export const AGENT_ONLINE_WINDOW_MS = 45_000
 
 export const MAX_COPIES = 50
 
+/**
+ * Uploads larger than this are sent in pieces of this size: Vercel rejects request bodies over 4.5 MB.
+ * The pieces are joined on the server (see /api/public/uploads).
+ */
+export const UPLOAD_CHUNK_BYTES = 3.5 * 1024 * 1024
+
+/** Random id the browser picks for a piece-by-piece upload. */
+export const UPLOAD_ID_PATTERN = /^[A-Za-z0-9_-]{16,64}$/
+
 /** Files one order may hold. */
 export const MAX_FILES_PER_ORDER = 20
 

@@ -149,6 +149,6 @@ pub fn open(target: &str) {
 pub fn message(text: &str, error: bool) {
     let icon = if error { MB_ICONERROR } else { MB_ICONINFORMATION };
     unsafe {
-        MessageBoxW(None, &HSTRING::from(text), w!("Scan & Print"), MB_OK | icon);
+        MessageBoxW(None, &HSTRING::from(text), w!("Mudron"), MB_OK | icon);
     }
 }

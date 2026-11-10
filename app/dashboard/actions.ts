@@ -1,16 +1,18 @@
 "use server"
 
 import { refresh } from "next/cache"
-import { isValidObjectId } from "mongoose"
+import { isValidObjectId, type Types } from "mongoose"
 import { z } from "zod"
 import { fail, type ActionResult } from "@/lib/action-result"
 import { requireShop, requireUser } from "@/lib/auth"
 import { BkashError, testBkashCredentials } from "@/lib/bkash"
 import { encrypt, decrypt, randomCode } from "@/lib/crypto"
+import type { JobStatus } from "@/lib/constants"
 import { connectDb } from "@/lib/db"
 import { env } from "@/lib/env"
 import { discardJobFile, queueJob } from "@/lib/jobs"
-import { Agent, Device, PrintJob, Shop } from "@/lib/models"
+import { Agent, Device, Order, PrintJob, Shop } from "@/lib/models"
+import { deleteFile } from "@/lib/storage"
 
 const RESERVED_SLUGS = new Set(["admin", "api", "dashboard", "login", "onboarding", "s", "j", "app", "www"])
 
@@ -283,4 +285,47 @@ export async function markJobCompleted(jobId: string): Promise<ActionResult> {
   await discardJobFile(updated)
   refresh()
   return { ok: true }
+}
+
+/* --------------------------------- Orders ---------------------------------- */
+
+// Files still waiting or printing: an order with any of these can't be deleted.
+const LIVE_JOB_STATUSES: JobStatus[] = ["queued", "printing", "awaiting_approval"]
+
+/** Deletes orders with their print jobs and any stored files. */
+async function removeOrders(orderIds: Types.ObjectId[]) {
+  const jobs = await PrintJob.find({ orderId: { $in: orderIds } }).select("fileKey fileDeleted")
+  for (const job of jobs) {
+    if (!job.fileDeleted) await deleteFile(job.fileKey).catch((error) => console.error("Failed to delete file", job.fileKey, error))
+  }
+  await PrintJob.deleteMany({ orderId: { $in: orderIds } })
+  await Order.deleteMany({ _id: { $in: orderIds } })
+}
+
+/** Removes one order from the history. Not allowed while any of its files is waiting or printing. */
+export async function deleteOrder(orderId: string): Promise<ActionResult> {
+  const { shop } = await requireShop()
+  if (!isValidObjectId(orderId)) return fail("অর্ডার পাওয়া যায়নি।")
+  const order = await Order.findOne({ _id: orderId, shopId: shop._id })
+  if (!order) return fail("অর্ডার পাওয়া যায়নি।")
+  if (await PrintJob.exists({ orderId: order._id, status: { $in: LIVE_JOB_STATUSES } })) {
+    return fail("এই অর্ডারের ফাইল এখনো লাইনে বা প্রিন্টে আছে। আগে বাতিল বা সম্পন্ন করুন।")
+  }
+  await removeOrders([order._id])
+  refresh()
+  return { ok: true }
+}
+
+/** Clears the history: every placed order whose files are all completed or cancelled. */
+export async function deleteOrderHistory(): Promise<ActionResult<{ deleted: number }>> {
+  const { shop } = await requireShop()
+  const finished = await PrintJob.aggregate<{ _id: Types.ObjectId }>([
+    { $match: { shopId: shop._id } },
+    { $group: { _id: "$orderId", statuses: { $addToSet: "$status" } } },
+    { $match: { statuses: { $not: { $elemMatch: { $nin: ["completed", "cancelled"] } } } } },
+  ])
+  const placed = await Order.find({ _id: { $in: finished.map((row) => row._id) }, shopId: shop._id, status: "placed" }).select("_id")
+  await removeOrders(placed.map((order) => order._id))
+  refresh()
+  return { ok: true, deleted: placed.length }
 }

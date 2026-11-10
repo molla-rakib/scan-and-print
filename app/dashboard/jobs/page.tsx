@@ -25,9 +25,12 @@ import {
   type PaperSize,
   type PaymentMethod,
 } from "@/lib/constants"
+import { env } from "@/lib/env"
 import { latestCashOrder, orderStatus } from "@/lib/jobs"
 import { Device, Order, PrintJob } from "@/lib/models"
-import { JobActions } from "./job-actions"
+import { FileActionsMenu } from "./job-actions"
+import { DeleteHistoryButton } from "./delete-history-button"
+import { OrderActions } from "./order-actions"
 
 export const metadata: Metadata = { title: "প্রিন্ট অর্ডার" }
 
@@ -39,7 +42,9 @@ export default function JobsPage() {
         description="নতুন অর্ডার স্বয়ংক্রিয়ভাবে এখানে দেখা যাবে।"
         icon={ListOrderedIcon}
         tone="violet"
-      />
+      >
+        <DeleteHistoryButton />
+      </PageHeader>
       <Suspense fallback={<Skeleton className="h-96" />}>
         <Jobs />
       </Suspense>
@@ -94,6 +99,9 @@ async function Jobs() {
                   <TableHead className="hidden sm:table-cell">পেমেন্ট</TableHead>
                   <TableHead className="hidden xl:table-cell">সময়</TableHead>
                   <TableHead className="hidden md:table-cell">অবস্থা</TableHead>
+                  <TableHead className="w-10">
+                    <span className="sr-only">অপশন</span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -107,7 +115,7 @@ async function Jobs() {
                       <TableCell className="max-w-56 whitespace-normal sm:max-w-80 lg:max-w-none">
                         <ul className="flex flex-col gap-3">
                           {files.map((job) => (
-                            <li key={job.id} className="flex items-start justify-between gap-2">
+                            <li key={job.id}>
                               <div className="min-w-0">
                                 <div className="truncate font-medium">{job.fileName}</div>
                                 <div className="text-xs text-muted-foreground">
@@ -126,7 +134,6 @@ async function Jobs() {
                                   </div>
                                 )}
                               </div>
-                              <JobActions jobId={job.id} status={job.status as JobStatus} canReprint={!job.fileDeleted} />
                             </li>
                           ))}
                         </ul>
@@ -160,6 +167,26 @@ async function Jobs() {
                       <TableCell className="hidden text-muted-foreground xl:table-cell">{formatDateTime(order.createdAt)}</TableCell>
                       <TableCell className="hidden md:table-cell">
                         <JobStatusBadge status={status} />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-end gap-1">
+                          <FileActionsMenu
+                            files={files.map((job) => ({
+                              id: job.id,
+                              name: job.fileName,
+                              status: job.status as JobStatus,
+                              canReprint: !job.fileDeleted,
+                            }))}
+                          />
+                          <OrderActions
+                            orderId={order.id}
+                            deletable={!files.some((job) => ["queued", "printing", "awaiting_approval"].includes(job.status))}
+                            url={`${env.appUrl}/j/${order.publicId}`}
+                            token={order.token}
+                            shopName={shop.name}
+                            customerPhone={order.customer?.phone}
+                          />
+                        </div>
                       </TableCell>
                     </TableRow>
                   )

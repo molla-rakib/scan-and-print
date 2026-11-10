@@ -1,4 +1,4 @@
-# স্ক্যান অ্যান্ড প্রিন্ট (Scan & Print)
+# মুদ্রণ (Mudron)
 
 Automatic printing for print/photocopy shops in Bangladesh. A customer scans the shop's QR code, uploads a PDF,
 chooses black & white or color, pays with bKash (or cash at the counter), and the job prints on the right

@@ -2,7 +2,7 @@
 name = "scan-print-agent"
 version = "1.1.0"
 edition = "2024"
-description = "Scan & Print agent: prints customer jobs on the shop's Windows printers"
+description = "Mudron agent: prints customer jobs on the shop's Windows printers"
 publish = false
 
 [dependencies]

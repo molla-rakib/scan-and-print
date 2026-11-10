@@ -1,8 +1,17 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Fragment, useEffect, useState } from "react"
 import Link from "next/link"
-import { BanknoteIcon, CheckIcon, CircleAlertIcon, PrinterIcon, XCircleIcon } from "lucide-react"
+import {
+  BanknoteIcon,
+  CheckIcon,
+  CircleAlertIcon,
+  HourglassIcon,
+  PrinterIcon,
+  ReceiptTextIcon,
+  WalletIcon,
+  XCircleIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 import { BkashButton } from "@/components/bkash"
 import { CashCheckout, type CashCustomer } from "@/components/cash-checkout"
@@ -10,7 +19,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { Spinner } from "@/components/ui/spinner"
 import {
   COLOR_MODE_LABELS,
   PAPER_SIZE_LABELS,
@@ -29,11 +37,16 @@ import { cn } from "@/lib/utils"
 const FINAL: JobStatus[] = ["completed", "cancelled"]
 
 const steps = [
-  { label: "অর্ডার", reached: ["queued", "printing", "completed"] },
-  { label: "লাইনে", reached: ["queued", "printing", "completed"] },
-  { label: "প্রিন্ট হচ্ছে", reached: ["printing", "completed"] },
-  { label: "সম্পন্ন", reached: ["completed"] },
+  { label: "অর্ডার নেওয়া হয়েছে", icon: ReceiptTextIcon },
+  { label: "লাইনে আছে", icon: HourglassIcon },
+  { label: "প্রিন্ট হচ্ছে", icon: PrinterIcon },
+  { label: "সম্পন্ন", icon: CheckIcon },
 ]
+
+/** Index of the step the order is on; every step before it is done. Completed orders are past the last step. */
+function currentStep(status: JobStatus) {
+  return status === "printing" ? 2 : status === "completed" ? steps.length : 1
+}
 
 function headline(job: PublicOrderView): { title: string; text: string } {
   switch (job.status) {
@@ -45,10 +58,12 @@ function headline(job: PublicOrderView): { title: string; text: string } {
         text: `দোকানদারকে টোকেন ${formatToken(job.token)} দেখান। টাকা নেওয়ার পর প্রিন্ট শুরু হবে।`,
       }
     case "queued":
-      return {
-        title: job.queuePosition && job.queuePosition > 1 ? `লাইনে আপনার অবস্থান: ${formatNumber(job.queuePosition)}` : "প্রিন্ট শুরু হতে যাচ্ছে",
-        text: "প্রিন্টার প্রস্তুত হলেই প্রিন্ট শুরু হবে।",
-      }
+      return job.queuePosition && job.queuePosition > 1
+        ? {
+            title: `লাইনে আপনার অবস্থান: ${formatNumber(job.queuePosition)}`,
+            text: `আপনার আগে ${formatNumber(job.queuePosition - 1)}টি অর্ডার আছে। আপনার পালা এলেই প্রিন্ট শুরু হবে।`,
+          }
+        : { title: "আপনার অর্ডার লাইনে আছে", text: "আপনার আগে কেউ নেই — প্রিন্টার প্রস্তুত হলেই প্রিন্ট শুরু হবে।" }
     case "printing":
       return { title: "প্রিন্ট হচ্ছে…", text: job.files.length > 1 ? "সব ফাইল প্রিন্ট হলে জানানো হবে।" : "একটু অপেক্ষা করুন।" }
     case "completed":
@@ -117,14 +132,41 @@ export function JobStatusView({ initial, paymentResult }: { initial: PublicOrder
         </div>
 
         {showSteps && (
-          <ol className="grid grid-cols-4 gap-2">
-            {steps.map((step) => {
-              const done = step.reached.includes(job.status)
+          <ol className="flex items-start" aria-label="অর্ডারের ধাপ">
+            {steps.map((step, i) => {
+              const current = currentStep(job.status)
+              const state = i < current ? "done" : i === current ? "current" : "next"
+              const Icon = state === "done" ? CheckIcon : step.icon
               return (
-                <li key={step.label} className="flex flex-col items-center gap-1.5 text-center">
-                  <span className={cn("h-1.5 w-full rounded-full", done ? "bg-emerald-500" : "bg-muted")} />
-                  <span className={cn("text-xs", done ? "font-medium" : "text-muted-foreground")}>{step.label}</span>
-                </li>
+                <Fragment key={step.label}>
+                  <li
+                    aria-current={state === "current" ? "step" : undefined}
+                    className="flex w-16 shrink-0 flex-col items-center gap-1.5 text-center"
+                  >
+                    <span
+                      className={cn(
+                        "relative flex size-9 items-center justify-center rounded-full border-2 transition-colors",
+                        state === "done" && "border-emerald-500 bg-emerald-500 text-white",
+                        state === "current" && "border-primary bg-primary text-primary-foreground",
+                        state === "next" && "border-muted bg-background text-muted-foreground"
+                      )}
+                    >
+                      {state === "current" && <span className="absolute inset-0 animate-ping rounded-full bg-primary/30" />}
+                      <Icon className="relative size-4" />
+                    </span>
+                    <span
+                      className={cn(
+                        "text-xs leading-tight",
+                        state === "current" ? "font-semibold text-primary" : state === "done" ? "font-medium" : "text-muted-foreground"
+                      )}
+                    >
+                      {step.label}
+                    </span>
+                  </li>
+                  {i < steps.length - 1 && (
+                    <span className={cn("mt-4 h-0.5 flex-1 rounded-full", i < current ? "bg-emerald-500" : "bg-muted")} />
+                  )}
+                </Fragment>
               )
             })}
           </ol>
@@ -213,7 +255,7 @@ export function JobStatusView({ initial, paymentResult }: { initial: PublicOrder
           </>
         )}
         {FINAL.includes(job.status) && (
-          <Button variant="outline" className="w-full" render={<Link href={`/s/${job.shop.slug}`} />} nativeButton={false}>
+          <Button size="lg" className="h-12 w-full text-base" render={<Link href={`/s/${job.shop.slug}`} />} nativeButton={false}>
             আরেকটি ফাইল প্রিন্ট করুন
           </Button>
         )}
@@ -225,39 +267,55 @@ export function JobStatusView({ initial, paymentResult }: { initial: PublicOrder
   )
 }
 
+/** A large icon whose motion matches the stage: an hourglass while waiting, paper feeding while printing. */
 function StatusIcon({ status }: { status: JobStatus }) {
-  const base = "flex size-12 items-center justify-center rounded-full"
+  const base = "relative flex size-16 items-center justify-center rounded-full"
   switch (status) {
     case "completed":
       return (
-        <span className={cn(base, "bg-emerald-500/15 text-emerald-600")}>
-          <CheckIcon className="size-6" />
+        <span className={cn(base, "animate-pop bg-emerald-500 text-white shadow-lg shadow-emerald-500/30")}>
+          <CheckIcon className="size-8" strokeWidth={3} />
         </span>
       )
-    case "failed":
-    case "cancelled":
+    case "printing":
+      return (
+        <span className={cn(base, "bg-violet-500/15 text-violet-600")}>
+          <span className="absolute inset-0 animate-ping rounded-full bg-violet-500/15" />
+          <PrinterIcon className="relative size-8" />
+          {/* A sheet coming out of the printer. */}
+          <span className="absolute top-[58%] left-1/2 h-2.5 w-4 -translate-x-1/2 overflow-hidden">
+            <span className="block h-full w-full animate-print-sheet rounded-[1px] border border-violet-600 bg-white" />
+          </span>
+        </span>
+      )
+    case "queued":
+      return (
+        <span className={cn(base, "bg-blue-500/15 text-blue-600")}>
+          <HourglassIcon className="size-8 animate-hourglass" />
+        </span>
+      )
     case "pending_payment":
       return (
-        <span className={cn(base, "bg-destructive/10 text-destructive")}>
-          <XCircleIcon className="size-6" />
+        <span className={cn(base, "bg-amber-500/15 text-amber-600")}>
+          <WalletIcon className="size-8" />
         </span>
       )
     case "awaiting_approval":
       return (
         <span className={cn(base, "bg-amber-500/15 text-amber-600")}>
-          <BanknoteIcon className="size-6" />
+          <BanknoteIcon className="size-8" />
         </span>
       )
-    case "printing":
+    case "failed":
       return (
-        <span className={cn(base, "animate-pulse bg-violet-500/15 text-violet-600")}>
-          <PrinterIcon className="size-6" />
+        <span className={cn(base, "bg-destructive/10 text-destructive")}>
+          <CircleAlertIcon className="size-8" />
         </span>
       )
     default:
       return (
-        <span className={cn(base, "bg-blue-500/15 text-blue-600")}>
-          <Spinner className="size-6" />
+        <span className={cn(base, "bg-muted text-muted-foreground")}>
+          <XCircleIcon className="size-8" />
         </span>
       )
   }

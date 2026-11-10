@@ -193,7 +193,7 @@ pub fn run(default_server: String) {
 
 impl App {
     fn start(&mut self, target: &EventLoopWindowTarget<UserEvent>) {
-        log(&format!("Scan & Print agent {VERSION} (tray) started"));
+        log(&format!("Mudron agent {VERSION} (tray) started"));
         let m = &self.menus;
         let menu = Menu::new();
         let separator = PredefinedMenuItem::separator();
@@ -212,7 +212,7 @@ impl App {
         self.tray = TrayIconBuilder::new()
             .with_menu(Box::new(menu))
             .with_menu_on_left_click(false)
-            .with_tooltip("Scan & Print")
+            .with_tooltip("Mudron")
             .with_icon(tray_icon(Status::Starting, false))
             .build()
             .map_err(|e| log(&format!("Could not create the tray icon: {e}")))
@@ -516,7 +516,7 @@ impl App {
                 Some((token, false)) => format!("\nসর্বশেষ: #{} প্রিন্ট হয়নি", bn(token as usize)),
                 None => String::new(),
             };
-            let _ = tray.set_tooltip(Some(format!("Scan & Print\n{text}{last}")));
+            let _ = tray.set_tooltip(Some(format!("Mudron\n{text}{last}")));
             let _ = tray.set_icon(Some(tray_icon(status, self.sumatra_missing)));
         }
     }
@@ -560,8 +560,8 @@ fn window_icon() -> Option<tao::window::Icon> {
 /// Title, size (logical px) and whether the user may resize, per window.
 fn page_window(page: Page) -> (&'static str, (f64, f64), bool) {
     match page {
-        Page::Pair => ("Scan & Print", (440.0, 500.0), false),
-        Page::Status => ("Scan & Print", (420.0, 570.0), false),
+        Page::Pair => ("Mudron", (440.0, 500.0), false),
+        Page::Status => ("Mudron", (420.0, 570.0), false),
     }
 }
 
