@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { FilePlusIcon, TriangleAlertIcon, UploadIcon } from "lucide-react"
+import { FilePlusIcon, ImageIcon, TriangleAlertIcon, UploadIcon } from "lucide-react"
 import { toast } from "sonner"
 import { BkashButton } from "@/components/bkash"
 import { CashCheckout, type CashCustomer } from "@/components/cash-checkout"
@@ -14,7 +14,9 @@ import { cn } from "@/lib/utils"
 import { FileCard, fileTotal, printedPages, type FileItem, type PrintOptions } from "./file-card"
 import { isImageFile } from "./preview"
 
-const ACCEPT = "application/pdf,.pdf,image/jpeg,.jpg,.jpeg,image/png,.png"
+// Separate pickers: on Android, an input that accepts images opens the photo picker, which hides PDFs.
+const ACCEPT_PDF = "application/pdf,.pdf"
+const ACCEPT_IMAGES = "image/jpeg,image/png"
 
 type Uploaded = { order: string; file: { id: string; pageCount: number } }
 
@@ -56,6 +58,7 @@ const DEFAULT_OPTIONS: PrintOptions = { colorMode: "bw", copies: 1, duplex: fals
 
 export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUploadMb: number }) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
   const [items, setItems] = useState<FileItem[]>([])
   const [paying, setPaying] = useState<PaymentMethod | null>(null)
@@ -101,7 +104,7 @@ export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUplo
 
   function addFiles(list: FileList | null | undefined) {
     const files = Array.from(list ?? [])
-    if (inputRef.current) inputRef.current.value = ""
+    for (const input of [inputRef.current, imageInputRef.current]) if (input) input.value = ""
     if (!files.length) return
     const room = MAX_FILES_PER_ORDER - itemsRef.current.length
     if (files.length > room) toast.error(`একটি অর্ডারে সর্বোচ্চ ${formatNumber(MAX_FILES_PER_ORDER)}টি ফাইল দেওয়া যাবে।`)
@@ -156,8 +159,18 @@ export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUplo
     }
   }
 
-  const fileInput = (
-    <input ref={inputRef} type="file" multiple accept={ACCEPT} className="hidden" onChange={(e) => addFiles(e.target.files)} />
+  const fileInputs = (
+    <>
+      <input ref={inputRef} type="file" multiple accept={ACCEPT_PDF} className="hidden" onChange={(e) => addFiles(e.target.files)} />
+      <input
+        ref={imageInputRef}
+        type="file"
+        multiple
+        accept={ACCEPT_IMAGES}
+        className="hidden"
+        onChange={(e) => addFiles(e.target.files)}
+      />
+    </>
   )
 
   const dropHandlers = {
@@ -207,12 +220,15 @@ export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUplo
             <span className="flex size-12 items-center justify-center rounded-full bg-primary/5">
               <UploadIcon className="size-6" />
             </span>
-            <span className="font-medium">PDF বা ছবি বেছে নিন</span>
+            <span className="font-medium">PDF ফাইল বেছে নিন</span>
             <span className="text-sm text-muted-foreground">
-              একসাথে একাধিক ফাইল দেওয়া যাবে · PDF, JPG, PNG · প্রতিটি সর্বোচ্চ {formatNumber(maxUploadMb)} MB
+              একসাথে একাধিক ফাইল দেওয়া যাবে · প্রতিটি সর্বোচ্চ {formatNumber(maxUploadMb)} MB
             </span>
           </button>
-          {fileInput}
+          <Button variant="outline" className="h-11" onClick={() => imageInputRef.current?.click()}>
+            <ImageIcon /> ছবি প্রিন্ট করুন (JPG, PNG)
+          </Button>
+          {fileInputs}
         </CardContent>
       </Card>
     )
@@ -232,16 +248,26 @@ export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUplo
       ))}
 
       {items.length < MAX_FILES_PER_ORDER && (
-        <Button
-          variant="outline"
-          className={cn("h-12 border-dashed", dragging && "border-primary bg-muted/60")}
-          disabled={!!paying}
-          onClick={() => inputRef.current?.click()}
-        >
-          <FilePlusIcon /> আরও ফাইল যোগ করুন
-        </Button>
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            variant="outline"
+            className={cn("h-12 border-dashed", dragging && "border-primary bg-muted/60")}
+            disabled={!!paying}
+            onClick={() => inputRef.current?.click()}
+          >
+            <FilePlusIcon /> আরও PDF
+          </Button>
+          <Button
+            variant="outline"
+            className={cn("h-12 border-dashed", dragging && "border-primary bg-muted/60")}
+            disabled={!!paying}
+            onClick={() => imageInputRef.current?.click()}
+          >
+            <ImageIcon /> আরও ছবি
+          </Button>
+        </div>
       )}
-      {fileInput}
+      {fileInputs}
 
       <Card>
         <CardContent className="flex items-end justify-between gap-3">
