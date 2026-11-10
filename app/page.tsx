@@ -143,7 +143,7 @@ export default function HomePage() {
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-foreground/10 bg-[oklch(0.985_0.008_85)]/85 backdrop-blur-md">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4 md:px-6">
-          <Logo />
+          <Logo className="h-8" />
           <nav className="hidden items-center gap-1 md:flex">
             {nav.map((item) => (
               <Button
