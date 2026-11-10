@@ -82,8 +82,9 @@ export function ProfileForm({
   )
 }
 
-type PaperPrices = { enabled: boolean; bw: number; color: number }
-type Pricing = { bw: number; color: number; paperSizes: { Legal: PaperPrices; A3: PaperPrices } }
+type Prices = { bw: number; color: number; bwSheet: number; colorSheet: number }
+type PaperPrices = Prices & { enabled: boolean }
+type Pricing = Prices & { colorDuplex: boolean; paperSizes: { Legal: PaperPrices; A3: PaperPrices } }
 
 const PAPER_ROWS = [
   { key: "A4", title: "A4" },
@@ -117,18 +118,27 @@ function PriceInput({ id, label, value, onChange }: { id: string; label: string;
 export function PricingForm({ initial }: { initial: Pricing }) {
   const { pending, run } = useAction()
   // Inputs are kept as text so the fields can be cleared while typing.
-  const toForm = (p: { enabled?: boolean; bw: number; color: number }) => ({
+  const toForm = (p: Prices & { enabled?: boolean }) => ({
     enabled: p.enabled ?? true,
     bw: String(p.bw),
     color: String(p.color),
+    bwSheet: String(p.bwSheet),
+    colorSheet: String(p.colorSheet),
   })
   const [form, setForm] = useState({
     A4: toForm(initial),
     Legal: toForm(initial.paperSizes.Legal),
     A3: toForm(initial.paperSizes.A3),
   })
+  const [colorDuplex, setColorDuplex] = useState(initial.colorDuplex)
   const update = (key: keyof typeof form, patch: Partial<(typeof form)["A4"]>) => setForm({ ...form, [key]: { ...form[key], ...patch } })
-  const toPrices = (p: (typeof form)["A4"]) => ({ enabled: p.enabled, bw: Number(p.bw), color: Number(p.color) })
+  const toPrices = (p: (typeof form)["A4"]) => ({
+    enabled: p.enabled,
+    bw: Number(p.bw),
+    color: Number(p.color),
+    bwSheet: Number(p.bwSheet),
+    colorSheet: Number(p.colorSheet),
+  })
 
   return (
     <Card className={SECTION}>
@@ -136,19 +146,31 @@ export function PricingForm({ initial }: { initial: Pricing }) {
         className="contents"
         onSubmit={(e) => {
           e.preventDefault()
-          const { bw, color } = toPrices(form.A4)
-          run(() => updatePricing({ bw, color, paperSizes: { Legal: toPrices(form.Legal), A3: toPrices(form.A3) } }), {
-            success: SAVED,
-          })
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars -- A4 is always on
+          const { enabled, ...a4 } = toPrices(form.A4)
+          run(
+            () => updatePricing({ ...a4, colorDuplex, paperSizes: { Legal: toPrices(form.Legal), A3: toPrices(form.A3) } }),
+            { success: SAVED }
+          )
         }}
       >
         <CardHeader>
           <div className="flex items-center gap-3">
             <IconTile icon={TagIcon} tone="emerald" />
-            <CardTitle>প্রিন্টের দাম (প্রতি পৃষ্ঠা)</CardTitle>
+            <CardTitle>প্রিন্টের দাম</CardTitle>
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
+          <p className="text-sm text-muted-foreground">
+            এক পাশে প্রিন্টের দাম প্রতি পৃষ্ঠা। দুই পাশে প্রিন্টের দাম প্রতি কাগজ (এক কাগজে ২ পৃষ্ঠা)।
+          </p>
+          <Field orientation="horizontal" className="rounded-lg border p-4">
+            <FieldContent>
+              <FieldTitle>রঙিন প্রিন্ট দুই পাশে</FieldTitle>
+              <FieldDescription>বন্ধ থাকলে রঙিন প্রিন্ট শুধু এক পাশে হবে।</FieldDescription>
+            </FieldContent>
+            <Switch checked={colorDuplex} onCheckedChange={setColorDuplex} aria-label="রঙিন প্রিন্ট দুই পাশে" />
+          </Field>
           {PAPER_ROWS.map(({ key, title }) => {
             const row = form[key]
             const always = key === "A4"
@@ -166,10 +188,34 @@ export function PricingForm({ initial }: { initial: Pricing }) {
                   )}
                 </div>
                 {row.enabled && (
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <PriceInput id={`${key}-bw`} label="সাদা-কালো" value={row.bw} onChange={(bw) => update(key, { bw })} />
-                    <PriceInput id={`${key}-color`} label="রঙিন" value={row.color} onChange={(color) => update(key, { color })} />
-                  </div>
+                  <>
+                    <div className="flex flex-col gap-3">
+                      <span className="text-sm font-medium text-muted-foreground">এক পাশে (প্রতি পৃষ্ঠা)</span>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <PriceInput id={`${key}-bw`} label="সাদা-কালো" value={row.bw} onChange={(bw) => update(key, { bw })} />
+                        <PriceInput id={`${key}-color`} label="রঙিন" value={row.color} onChange={(color) => update(key, { color })} />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-3">
+                      <span className="text-sm font-medium text-muted-foreground">দুই পাশে (প্রতি কাগজ)</span>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <PriceInput
+                          id={`${key}-bw-sheet`}
+                          label="সাদা-কালো"
+                          value={row.bwSheet}
+                          onChange={(bwSheet) => update(key, { bwSheet })}
+                        />
+                        {colorDuplex && (
+                          <PriceInput
+                            id={`${key}-color-sheet`}
+                            label="রঙিন"
+                            value={row.colorSheet}
+                            onChange={(colorSheet) => update(key, { colorSheet })}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
             )

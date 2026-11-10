@@ -72,12 +72,14 @@ export async function updateShopProfile(input: z.input<typeof profileSchema>): P
 }
 
 const price = z.number().min(0).max(1000)
-const extraPaperSchema = z.object({ enabled: z.boolean(), bw: price, color: price })
+// One side: per page. Both sides: per sheet (two pages).
+const paperPriceFields = { bw: price, color: price, bwSheet: price, colorSheet: price }
+const extraPaperSchema = z.object({ enabled: z.boolean(), ...paperPriceFields })
 
 // A4 prices plus the optional Legal and A3 sizes.
 const pricingSchema = z.object({
-  bw: price,
-  color: price,
+  ...paperPriceFields,
+  colorDuplex: z.boolean(),
   paperSizes: z.object({ Legal: extraPaperSchema, A3: extraPaperSchema }),
 })
 

@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { MAX_FILES_PER_ORDER, PAPER_SIZE_LABELS, UPLOAD_CHUNK_BYTES, formatNumber, formatTaka, type PaymentMethod } from "@/lib/constants"
 import type { PublicShopView } from "@/lib/public-shop"
 import { cn } from "@/lib/utils"
-import { FileCard, fileTotal, printedPages, type FileItem, type PrintOptions } from "./file-card"
+import { FileCard, effectiveOptions, fileTotal, printedPages, type FileItem, type PrintOptions } from "./file-card"
 import { prepareImageForUpload } from "./prepare-image"
 import { isImageFile } from "./preview"
 
@@ -204,7 +204,7 @@ export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUplo
     setPaying(method)
     try {
       const { redirectUrl } = await postJson<{ redirectUrl: string }>(`/api/public/orders/${orderRef.current}/checkout`, {
-        files: ready.map((item) => ({ id: item.id, ...item.options })),
+        files: ready.map((item) => ({ id: item.id, ...effectiveOptions(shop, item) })),
         method,
         customer,
       })

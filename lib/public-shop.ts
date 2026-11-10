@@ -1,7 +1,7 @@
 import "server-only"
 import { formatPageSelection, type ColorMode, type JobStatus, type PaperSize } from "@/lib/constants"
 import { connectDb } from "@/lib/db"
-import { availableDevices, cashFields, orderStatus, paperOptions, paymentOptions, queuePosition, shopIsOpen } from "@/lib/jobs"
+import { availableDevices, cashFields, colorDuplexAllowed, orderStatus, paperOptions, paymentOptions, queuePosition, shopIsOpen } from "@/lib/jobs"
 import { Device, PrintJob, Shop, type OrderDoc, type ShopDoc } from "@/lib/models"
 
 export async function findShopBySlug(slug: string) {
@@ -25,6 +25,8 @@ export async function publicShopView(shop: ShopDoc) {
     cashFields: cashFields(shop),
     hasColor: enabled.some((d) => d.color),
     hasDuplex: enabled.some((d) => d.duplex),
+    // Color on both sides needs the owner's switch and a printer that does both color and duplex.
+    colorDuplex: colorDuplexAllowed(shop) && enabled.some((d) => d.color && d.duplex),
     online: online.length > 0,
   }
 }

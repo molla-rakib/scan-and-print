@@ -6,8 +6,8 @@ import {
   EXTRA_PAPER_SIZES,
   MIN_AGENT_VERSION_FOR_OPTIONS,
   versionAtLeast,
-  type ColorMode,
   type JobStatus,
+  type PaperPrices,
   type PaperSize,
 } from "@/lib/constants"
 import { Agent, Device, Order, PrintJob, Shop, type DeviceDoc, type OrderDoc, type PrintJobDoc, type ShopDoc } from "@/lib/models"
@@ -54,22 +54,33 @@ export function cashFields(shop: ShopDoc) {
 
 export type CashFields = ReturnType<typeof cashFields>
 
-/** Paper sizes the shop offers, A4 first, with prices per printed side. */
-export function paperOptions(shop: ShopDoc): { size: PaperSize; bw: number; color: number }[] {
-  const options: { size: PaperSize; bw: number; color: number }[] = [
-    { size: "A4", bw: shop.pricing?.bw ?? 0, color: shop.pricing?.color ?? 0 },
-  ]
+type StoredPrices = { bw?: number | null; color?: number | null; bwSheet?: number | null; colorSheet?: number | null }
+
+/** One side's prices plus the both-sides sheet prices, which default to the one-side prices. */
+function withSheetPrices(size: PaperSize, p: StoredPrices): PaperPrices {
+  const bw = p.bw ?? 0
+  const color = p.color ?? 0
+  return { size, bw, color, bwSheet: p.bwSheet ?? bw, colorSheet: p.colorSheet ?? color }
+}
+
+/** Paper sizes the shop offers, A4 first, with prices per page (one side) and per sheet (both sides). */
+export function paperOptions(shop: ShopDoc): PaperPrices[] {
+  const options = [withSheetPrices("A4", shop.pricing ?? {})]
   for (const size of EXTRA_PAPER_SIZES) {
     const paper = shop.paperSizes?.[size]
-    if (paper?.enabled) options.push({ size, bw: paper.bw, color: paper.color })
+    if (paper?.enabled) options.push(withSheetPrices(size, paper))
   }
   return options
 }
 
-/** Price per printed side, or null if the shop doesn't offer that paper size. */
-export function pricePerPage(shop: ShopDoc, size: PaperSize, colorMode: ColorMode) {
-  const option = paperOptions(shop).find((o) => o.size === size)
-  return option ? option[colorMode] : null
+/** Whether the shop allows color printing on both sides (off by default). */
+export function colorDuplexAllowed(shop: ShopDoc) {
+  return shop.pricing?.colorDuplex ?? false
+}
+
+/** The prices of a paper size, or null if the shop doesn't offer it. */
+export function paperPrices(shop: ShopDoc, size: PaperSize) {
+  return paperOptions(shop).find((o) => o.size === size) ?? null
 }
 
 /** Enabled printers whose shop PC is currently online, with the agent's version. */

@@ -182,7 +182,15 @@ export default function HomePage() {
                 প্রিন্ট ও ফটোকপি দোকানের জন্য
               </span>
               <h1 className="text-[2.6rem] leading-[1.15] font-extrabold tracking-tight text-balance sm:text-6xl lg:text-7xl lg:leading-[1.08]">
-                পেনড্রাইভ নয়,
+                {/* The old ways take turns in one slot, each struck through, so the line stays short. */}
+                <span className="sr-only">পেনড্রাইভ, WhatsApp বা ইমেইল নয়,</span>
+                <span aria-hidden className="word-cycle">
+                  {["পেনড্রাইভ", "WhatsApp", "ইমেইল"].map((word) => (
+                    <span key={word}>
+                      <s>{word}</s> নয়,
+                    </span>
+                  ))}
+                </span>
                 <br />
                 <span className="marker px-1">QR কোড</span> দিয়েই প্রিন্ট।
               </h1>

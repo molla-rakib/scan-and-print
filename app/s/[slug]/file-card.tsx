@@ -26,7 +26,11 @@ import {
   formatNumber,
   formatPageSelection,
   formatTaka,
+  filePrice,
+  sheetCount,
+  unitPrice,
   type ColorMode,
+  type PaperPrices,
   type PaperSize,
 } from "@/lib/constants"
 import type { PublicShopView } from "@/lib/public-shop"
@@ -55,16 +59,28 @@ export type FileItem = {
   options: PrintOptions
 }
 
-export function pricePerPage(shop: PublicShopView, options: PrintOptions) {
-  return shop.papers.find((p) => p.size === options.paperSize)?.[options.colorMode] ?? 0
+function paperOf(shop: PublicShopView, options: PrintOptions) {
+  return shop.papers.find((p) => p.size === options.paperSize) ?? shop.papers[0]
 }
 
 export function printedPages(item: FileItem) {
   return item.options.pages.length || item.pageCount || 0
 }
 
+/** Whether both sides can be chosen for this file: more than one page, and color only if the shop allows it. */
+function duplexAvailable(shop: PublicShopView, item: FileItem) {
+  if (!shop.hasDuplex || printedPages(item) < 2) return false
+  return item.options.colorMode === "bw" || shop.colorDuplex
+}
+
+/** The options as they will be ordered: "both sides" is dropped when it no longer applies. */
+export function effectiveOptions(shop: PublicShopView, item: FileItem): PrintOptions {
+  return { ...item.options, duplex: item.options.duplex && duplexAvailable(shop, item) }
+}
+
 export function fileTotal(shop: PublicShopView, item: FileItem) {
-  return Math.round(pricePerPage(shop, item.options) * printedPages(item) * item.options.copies * 100) / 100
+  const options = effectiveOptions(shop, item)
+  return filePrice(paperOf(shop, options), options, printedPages(item))
 }
 
 /** A label with an icon above each option group. */
@@ -164,7 +180,14 @@ export function FileCard({
   const ready = item.state === "ready" && item.pageCount
   const pageCount = item.pageCount ?? 0
   const canPick = ready && pageCount > 1 && !disabled
-  const paper = shop.papers.find((p) => p.size === options.paperSize) ?? shop.papers[0]
+  const paper = paperOf(shop, options)
+  const showSides = duplexAvailable(shop, item)
+  const { duplex } = effectiveOptions(shop, item)
+  // Price of one unit for a color mode or paper size: per page on one side, per sheet on both sides.
+  const unitHint = (p: PaperPrices, colorMode: ColorMode) => {
+    const sheet = duplex && (colorMode === "bw" || shop.colorDuplex)
+    return `${formatTaka(unitPrice(p, colorMode, sheet))}/${sheet ? "কাগজ" : "পৃষ্ঠা"}`
+  }
 
   return (
     <div className="flex flex-col gap-5 rounded-xl border bg-card p-4 shadow-xs">
@@ -263,28 +286,41 @@ export function FileCard({
             disabled={disabled}
             onChange={(colorMode) => set({ colorMode })}
             options={[
-              { value: "bw", label: "সাদা-কালো", hint: `${formatTaka(paper.bw)}/পৃষ্ঠা` },
+              { value: "bw", label: "সাদা-কালো", hint: unitHint(paper, "bw") },
               {
                 value: "color",
                 label: "রঙিন",
-                hint: shop.hasColor ? `${formatTaka(paper.color)}/পৃষ্ঠা` : "পাওয়া যায় না",
+                hint: shop.hasColor ? unitHint(paper, "color") : "পাওয়া যায় না",
                 disabled: !shop.hasColor,
               },
             ]}
           />
 
-          {shop.hasDuplex && printedPages(item) > 1 && (
+          {showSides ? (
             <Segmented
               icon={LayersIcon}
               label="কাগজের এক পাশে না দুই পাশে?"
-              value={options.duplex ? "both" : "single"}
+              value={duplex ? "both" : "single"}
               disabled={disabled}
               onChange={(value) => set({ duplex: value === "both" })}
               options={[
-                { value: "single", label: SIDES_LABELS.single },
-                { value: "both", label: SIDES_LABELS.both, hint: "কাগজ কম লাগবে" },
+                { value: "single", label: SIDES_LABELS.single, hint: `${formatTaka(paper[options.colorMode])}/পৃষ্ঠা` },
+                {
+                  value: "both",
+                  label: SIDES_LABELS.both,
+                  hint: `${formatTaka(unitPrice(paper, options.colorMode, true))}/কাগজ`,
+                },
               ]}
             />
+          ) : (
+            shop.hasDuplex &&
+            options.colorMode === "color" &&
+            printedPages(item) > 1 && (
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <LayersIcon className="size-4 shrink-0" />
+                রঙিন প্রিন্ট শুধু কাগজের এক পাশে হয়
+              </p>
+            )
           )}
 
           {shop.papers.length > 1 && (
@@ -297,7 +333,7 @@ export function FileCard({
               options={shop.papers.map((p) => ({
                 value: p.size,
                 label: PAPER_SIZE_LABELS[p.size],
-                hint: `${formatTaka(p[options.colorMode])}/পৃষ্ঠা`,
+                hint: unitHint(p, options.colorMode),
               }))}
             />
           )}
@@ -335,7 +371,10 @@ export function FileCard({
             <div className="min-w-0">
               <div className="text-sm font-medium text-emerald-800 dark:text-emerald-300">এই ফাইলের দাম</div>
               <div className="text-xs text-muted-foreground">
-                {formatNumber(printedPages(item))} পৃষ্ঠা × {formatNumber(options.copies)} কপি × {formatTaka(pricePerPage(shop, options))}
+                {duplex
+                  ? `${formatNumber(printedPages(item))} পৃষ্ঠা = ${formatNumber(sheetCount(printedPages(item), true))} কাগজ`
+                  : `${formatNumber(printedPages(item))} পৃষ্ঠা`}{" "}
+                × {formatNumber(options.copies)} কপি × {formatTaka(unitPrice(paper, options.colorMode, duplex))}
               </div>
             </div>
             <span className="text-xl font-semibold text-emerald-800 tabular-nums dark:text-emerald-300">

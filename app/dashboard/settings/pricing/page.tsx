@@ -16,14 +16,23 @@ export default function PricingSettingsPage() {
 
 async function PricingSection() {
   const { shop } = await requireShop()
-  return <PricingForm
+  // Sheet prices that were never set show the one-side price, which is what customers are charged.
+  const prices = (p: { bw: number; color: number; bwSheet?: number | null; colorSheet?: number | null }) => ({
+    bw: p.bw,
+    color: p.color,
+    bwSheet: p.bwSheet ?? p.bw,
+    colorSheet: p.colorSheet ?? p.color,
+  })
+  return (
+    <PricingForm
       initial={{
-        bw: shop.pricing.bw,
-        color: shop.pricing.color,
+        ...prices(shop.pricing),
+        colorDuplex: shop.pricing.colorDuplex,
         paperSizes: {
-          Legal: { enabled: shop.paperSizes.Legal.enabled, bw: shop.paperSizes.Legal.bw, color: shop.paperSizes.Legal.color },
-          A3: { enabled: shop.paperSizes.A3.enabled, bw: shop.paperSizes.A3.bw, color: shop.paperSizes.A3.color },
+          Legal: { enabled: shop.paperSizes.Legal.enabled, ...prices(shop.paperSizes.Legal) },
+          A3: { enabled: shop.paperSizes.A3.enabled, ...prices(shop.paperSizes.A3) },
         },
       }}
     />
+  )
 }

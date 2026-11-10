@@ -4,8 +4,10 @@ name: scan-and-print
 
 services:
   mongo:
-    # Pinned so everyone runs the same version. mongo:8 (8.0) crashes on Linux kernels 6.19–7.0.13 (SERVER-121912); 8.2 works.
-    image: mongo:8.2
+    # Pinned so everyone runs the same version. mongo:8.0 crashes on Linux kernels 6.19–7.0.13 (SERVER-121912).
+    # Never pin lower than the data was last opened with: a newer mongod raises the data's featureCompatibilityVersion,
+    # and older binaries then refuse to start (exit 62). The local volume is FCV 8.3 (it was once run with mongo:8).
+    image: mongo:8.3
     command: --replSet rs0 --bind_ip_all
     ports: ["127.0.0.1:27017:27017"]
     volumes: [mongo-data:/data/db]

@@ -133,7 +133,7 @@ Code lives in `agent/` (see `agent/README.md`). Release with `agent/release.ps1`
       (`/dashboard/settings`, `/pricing`, `/payment`; scrollable tabs on phones)
 - [x] Cash: owner switches for asking the customer's name and/or mobile number (shown = required; at least one on)
 - [x] Page selection: page previews with a checkbox on each (plus all/none and typed ranges like "১-৩, ৫"); price counts selected pages only
-- [x] Both sides (duplex), for B/W and color, same price per printed side; hidden when no enabled printer can duplex
+- [x] Both sides (duplex), priced per sheet (2 pages = 1 sheet, odd last page = full sheet); the owner sets the sheet price per size (default = one-side price). Color is one side only unless the owner turns on color both sides; hidden when no enabled printer can duplex
 - [x] Paper size A4 / Legal / A3: A4 always on; the owner turns on Legal/A3 with their own prices (Settings → প্রিন্টের দাম).
       Agent 1.1.0 reports each printer's sizes; jobs only go to printers that support them
 - [x] Several files in one order (one payment + token), each file with its own color, copies, pages, sides and size.
@@ -197,3 +197,5 @@ Code lives in `agent/` (see `agent/README.md`). Release with `agent/release.ps1`
 | 2026-11-10 | Nav/site logo switched back to the main mark `agent/ui/logo.svg` (blue tile + sheet); the printing press stays as the animated hero. |
 | 2026-11-10 | Site logo is now the full wordmark `public/images/logo.svg` (press + মুদ্রণ + tagline) everywhere `Logo` is used. |
 | 2026-11-10 | Photo uploads failed on Vercel (PNG → PDF conversion in JS was too slow for the function). Photos are now re-saved in the browser as JPEG (92%, max 3508 px, white background, phone rotation applied; PNGs under 1 MB stay lossless), and the upload route has `maxDuration = 60`. A 62 MB PNG now uploads as a 1.7 MB file. |
+| 2026-11-10 | Local MongoDB kept restarting (exit 62): the volume had been opened once with `mongo:8` (now 8.3), which raised its featureCompatibilityVersion to 8.3, so the pinned `mongo:8.2` refused to start. `docker-compose.yml` now pins `mongo:8.3`; data kept. |
+| 2026-11-10 | **Both-sides pricing per sheet.** Duplex jobs are charged per sheet (30 pages = 15 sheets; 31 pages = 16), with a separate per-sheet price per paper size in Settings (defaults to the one-side price). Color printing is one side only by default; a switch in Settings turns on color both-sides with its own sheet price, and it also needs a printer that is both color and duplex. Tested via the API against the local DB (৳90 → ৳45, ৳2.5/sheet → ৳37.5, color 31 pages at ৳15/sheet → ৳240). |

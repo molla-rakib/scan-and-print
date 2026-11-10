@@ -2,10 +2,10 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { jsonError, parseBody } from "@/lib/api"
 import { BkashError, createPayment, shopBkashCredentials } from "@/lib/bkash"
-import { MAX_COPIES, PAPER_SIZES, cleanPages, normalizeBdPhone } from "@/lib/constants"
+import { MAX_COPIES, PAPER_SIZES, cleanPages, filePrice, normalizeBdPhone, unitPrice } from "@/lib/constants"
 import { connectDb } from "@/lib/db"
 import { env } from "@/lib/env"
-import { cashFields, paymentOptions, placeOrder, pricePerPage, shopIsOpen } from "@/lib/jobs"
+import { cashFields, colorDuplexAllowed, paperPrices, paymentOptions, placeOrder, shopIsOpen } from "@/lib/jobs"
 import { Device, Order, PrintJob, Shop } from "@/lib/models"
 
 const fileSchema = z.object({
@@ -63,23 +63,32 @@ export async function POST(request: Request, { params }: { params: Promise<{ pub
       const options = body.files.find((f) => f.id === job.id)!
       if (options.colorMode === "color" && !enabled.some((d) => d.color)) return jsonError("এই দোকানে রঙিন প্রিন্ট পাওয়া যায় না")
       if (options.duplex && !enabled.some((d) => d.duplex)) return jsonError("এই দোকানে দুই পাশে প্রিন্ট পাওয়া যায় না")
-      const price = pricePerPage(shop, options.paperSize, options.colorMode)
-      if (price === null) return jsonError("এই দোকানে এই কাগজের মাপ পাওয়া যায় না")
+      if (
+        options.duplex &&
+        options.colorMode === "color" &&
+        (!colorDuplexAllowed(shop) || !enabled.some((d) => d.color && d.duplex))
+      ) {
+        return jsonError("এই দোকানে রঙিন প্রিন্ট শুধু এক পাশে হয়")
+      }
+      const paper = paperPrices(shop, options.paperSize)
+      if (!paper) return jsonError("এই দোকানে এই কাগজের মাপ পাওয়া যায় না")
 
       let pages = cleanPages(options.pages, job.pageCount)
       if (options.pages.length > 0 && pages.length === 0) return jsonError(`"${job.fileName}" ফাইলের অন্তত একটি পৃষ্ঠা বাছুন`)
       if (pages.length === job.pageCount) pages = []
       const printPages = pages.length || job.pageCount
+      // A single page has no back side.
+      const duplex = options.duplex && printPages > 1
 
       job.set({
         colorMode: options.colorMode,
         copies: options.copies,
         pages,
         printPages,
-        duplex: options.duplex,
+        duplex,
         paperSize: options.paperSize,
-        pricePerPage: price,
-        amount: round(price * printPages * options.copies),
+        pricePerPage: unitPrice(paper, options.colorMode, duplex),
+        amount: filePrice(paper, { ...options, duplex }, printPages),
       })
     }
   } else if (order.status !== "pending_payment") {

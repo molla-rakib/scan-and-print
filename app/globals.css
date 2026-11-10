@@ -268,3 +268,53 @@
 @media (prefers-reduced-motion: reduce) {
   .press-spin, .press-spin-reverse, .press-spin-slow, .press-feed, .press-led, .press-dash path { animation: none; }
 }
+
+/* Landing hero: "পেনড্রাইভ / WhatsApp / ইমেইল নয়," take turns in one slot, each word struck through by a
+   pink ink line. Stacked in one grid cell and left-aligned, so spare width falls at the end of the line. */
+.word-cycle {
+  display: inline-grid;
+  text-align: left;
+}
+.word-cycle > span {
+  grid-area: 1 / 1;
+  justify-self: start;
+  white-space: nowrap;
+  opacity: 0;
+  animation: word-cycle 7.5s infinite;
+}
+.word-cycle s {
+  position: relative;
+  text-decoration: none;
+}
+.word-cycle s::after {
+  content: "";
+  position: absolute;
+  left: -0.05em;
+  right: -0.05em;
+  top: 38%;
+  height: 0.09em;
+  border-radius: 999px;
+  background: var(--color-pink-500, #ec4899);
+  transform: scaleX(0);
+  transform-origin: left;
+  animation: word-strike 7.5s infinite;
+}
+.word-cycle > span:nth-child(2),
+.word-cycle > span:nth-child(2) s::after { animation-delay: 2.5s; }
+.word-cycle > span:nth-child(3),
+.word-cycle > span:nth-child(3) s::after { animation-delay: 5s; }
+
+@keyframes word-cycle {
+  0% { opacity: 0; transform: translateY(0.3em); }
+  4%, 30% { opacity: 1; transform: none; }
+  34%, 100% { opacity: 0; transform: translateY(-0.3em); }
+}
+@keyframes word-strike {
+  0%, 12% { transform: scaleX(0); }
+  20%, 100% { transform: scaleX(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .word-cycle > span, .word-cycle s::after { animation: none; }
+  .word-cycle > span:first-child { opacity: 1; }
+  .word-cycle > span:first-child s::after { transform: scaleX(1); }
+}

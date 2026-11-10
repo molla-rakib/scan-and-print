@@ -29,6 +29,11 @@ const pricingSchema = new Schema(
   {
     bw: { type: Number, default: 3 },
     color: { type: Number, default: 10 },
+    // Price per sheet printed on both sides (two pages). Unset means the same as one side.
+    bwSheet: { type: Number },
+    colorSheet: { type: Number },
+    // Color prints on one side only unless the owner turns this on.
+    colorDuplex: { type: Boolean, default: false },
   },
   { _id: false }
 )
@@ -40,6 +45,9 @@ const paperSizeSchema = (bw: number, color: number) =>
       enabled: { type: Boolean, default: false },
       bw: { type: Number, default: bw },
       color: { type: Number, default: color },
+      // Per sheet printed on both sides; unset means the same as one side.
+      bwSheet: { type: Number },
+      colorSheet: { type: Number },
     },
     { _id: false }
   )
@@ -82,7 +90,7 @@ const shopSchema = new Schema(
     slug: { type: String, required: true, unique: true, lowercase: true, trim: true },
     address: { type: String, trim: true, default: "" },
     phone: { type: String, trim: true, default: "" },
-    // Price per printed page (side), in BDT, for A4.
+    // A4 prices in BDT: per page on one side, per sheet on both sides (see PaperPrices).
     pricing: { type: pricingSchema, default: () => ({}), required: true },
     // Legal and A3: offered only when enabled, each with its own prices.
     paperSizes: { type: paperSizesSchema, default: () => ({}), required: true },
@@ -202,6 +210,7 @@ const printJobSchema = new Schema(
     duplex: { type: Boolean, default: false },
     paperSize: { type: String, enum: PAPER_SIZES, default: "A4" },
     copies: { type: Number, default: 1 },
+    // Price per page, or per sheet when printed on both sides.
     pricePerPage: { type: Number, default: 0 },
     amount: { type: Number, default: 0 },
     // Copied from the order for the dashboard's cash totals.

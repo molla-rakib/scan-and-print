@@ -69,6 +69,29 @@ export const PAPER_SIZE_LABELS: Record<PaperSize, string> = {
 export const SIDES_LABELS = { single: "এক পাশে", both: "দুই পাশে" } as const
 
 /**
+ * Prices of one paper size: `bw`/`color` per printed page on one side, `bwSheet`/`colorSheet` per sheet
+ * printed on both sides (two pages).
+ */
+export type PaperPrices = { size: PaperSize; bw: number; color: number; bwSheet: number; colorSheet: number }
+
+/** Sheets of paper a job uses per copy: two pages per sheet when printed on both sides. */
+export function sheetCount(pages: number, duplex: boolean) {
+  return duplex ? Math.ceil(pages / 2) : pages
+}
+
+/** Price of one unit: a page on one side, or a sheet when printed on both sides. */
+export function unitPrice(paper: PaperPrices, colorMode: ColorMode, duplex: boolean) {
+  if (!duplex) return paper[colorMode]
+  return colorMode === "color" ? paper.colorSheet : paper.bwSheet
+}
+
+/** Total price of a file: units (pages, or sheets for both sides) × copies × unit price. */
+export function filePrice(paper: PaperPrices, options: { colorMode: ColorMode; duplex: boolean; copies: number }, pages: number) {
+  const units = sheetCount(pages, options.duplex)
+  return Math.round(unitPrice(paper, options.colorMode, options.duplex) * units * options.copies * 100) / 100
+}
+
+/**
  * Agents older than this print every page on one side of A4, so jobs that pick pages, print both sides
  * or use another paper size only go to newer agents.
  */
