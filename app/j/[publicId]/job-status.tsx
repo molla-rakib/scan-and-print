@@ -13,15 +13,17 @@ import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import {
   COLOR_MODE_LABELS,
+  PAPER_SIZE_LABELS,
   PAYMENT_METHOD_LABELS,
+  SIDES_LABELS,
   formatNumber,
   formatTaka,
   formatToken,
-  type ColorMode,
   type JobStatus,
   type PaymentMethod,
 } from "@/lib/constants"
-import type { PublicJobView } from "@/lib/public-shop"
+import { JobStatusBadge } from "@/components/job-status-badge"
+import type { PublicOrderView } from "@/lib/public-shop"
 import { cn } from "@/lib/utils"
 
 const FINAL: JobStatus[] = ["completed", "cancelled"]
@@ -33,7 +35,7 @@ const steps = [
   { label: "সম্পন্ন", reached: ["completed"] },
 ]
 
-function headline(job: PublicJobView): { title: string; text: string } {
+function headline(job: PublicOrderView): { title: string; text: string } {
   switch (job.status) {
     case "pending_payment":
       return { title: "পেমেন্ট সম্পন্ন হয়নি", text: "আবার চেষ্টা করুন অথবা অন্য পদ্ধতিতে পেমেন্ট করুন।" }
@@ -45,10 +47,10 @@ function headline(job: PublicJobView): { title: string; text: string } {
     case "queued":
       return {
         title: job.queuePosition && job.queuePosition > 1 ? `লাইনে আপনার অবস্থান: ${formatNumber(job.queuePosition)}` : "প্রিন্ট শুরু হতে যাচ্ছে",
-        text: job.deviceName ? `প্রিন্টার: ${job.deviceName}` : "প্রিন্টার প্রস্তুত হলেই প্রিন্ট শুরু হবে।",
+        text: "প্রিন্টার প্রস্তুত হলেই প্রিন্ট শুরু হবে।",
       }
     case "printing":
-      return { title: "প্রিন্ট হচ্ছে…", text: job.deviceName ? `প্রিন্টার: ${job.deviceName}` : "একটু অপেক্ষা করুন।" }
+      return { title: "প্রিন্ট হচ্ছে…", text: job.files.length > 1 ? "সব ফাইল প্রিন্ট হলে জানানো হবে।" : "একটু অপেক্ষা করুন।" }
     case "completed":
       return { title: "প্রিন্ট সম্পন্ন!", text: `কাউন্টার থেকে টোকেন ${formatToken(job.token)} দেখিয়ে কাগজ সংগ্রহ করুন।` }
     case "failed":
@@ -60,7 +62,7 @@ function headline(job: PublicJobView): { title: string; text: string } {
   }
 }
 
-export function JobStatusView({ initial, paymentResult }: { initial: PublicJobView; paymentResult: string | null }) {
+export function JobStatusView({ initial, paymentResult }: { initial: PublicOrderView; paymentResult: string | null }) {
   const [job, setJob] = useState(initial)
   const [paying, setPaying] = useState<PaymentMethod | null>(null)
 
@@ -73,7 +75,7 @@ export function JobStatusView({ initial, paymentResult }: { initial: PublicJobVi
     if (FINAL.includes(job.status)) return
     const id = setInterval(async () => {
       if (document.visibilityState !== "visible") return
-      const response = await fetch(`/api/public/jobs/${job.publicId}`, { cache: "no-store" }).catch(() => null)
+      const response = await fetch(`/api/public/orders/${job.publicId}`, { cache: "no-store" }).catch(() => null)
       if (response?.ok) setJob(await response.json())
     }, 3000)
     return () => clearInterval(id)
@@ -81,10 +83,11 @@ export function JobStatusView({ initial, paymentResult }: { initial: PublicJobVi
 
   async function retry(method: PaymentMethod, customer?: CashCustomer) {
     setPaying(method)
-    const response = await fetch(`/api/public/jobs/${job.publicId}/checkout`, {
+    // The print options were saved with the first attempt; only the payment is retried.
+    const response = await fetch(`/api/public/orders/${job.publicId}/checkout`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ colorMode: job.colorMode, copies: job.copies, method, customer }),
+      body: JSON.stringify({ method, customer }),
     })
     const data = await response.json().catch(() => ({}))
     if (!response.ok) {
@@ -135,27 +138,45 @@ export function JobStatusView({ initial, paymentResult }: { initial: PublicJobVi
           </Alert>
         )}
 
-        {job.status === "failed" && job.error && (
-          <Alert variant="destructive">
-            <CircleAlertIcon />
-            <AlertTitle>প্রিন্টারের বার্তা</AlertTitle>
-            <AlertDescription>{job.error}</AlertDescription>
-          </Alert>
-        )}
+        {job.files
+          .filter((file) => file.status === "failed" && file.error)
+          .map((file) => (
+            <Alert key={file.id} variant="destructive">
+              <CircleAlertIcon />
+              <AlertTitle>প্রিন্টারের বার্তা{job.files.length > 1 && ` — ${file.fileName}`}</AlertTitle>
+              <AlertDescription>{file.error}</AlertDescription>
+            </Alert>
+          ))}
+
+        <Separator />
+
+        <ul className="flex flex-col gap-3">
+          {job.files.map((file) => (
+            <li key={file.id} className="flex items-start justify-between gap-3 text-sm">
+              <div className="min-w-0">
+                <div className="truncate font-medium">{file.fileName}</div>
+                <div className="text-xs text-muted-foreground">
+                  {file.pagesLabel === "সব পৃষ্ঠা" ? `${formatNumber(file.pageCount)} পৃষ্ঠা` : `পৃষ্ঠা ${file.pagesLabel}`} ×{" "}
+                  {formatNumber(file.copies)} কপি · {COLOR_MODE_LABELS[file.colorMode]}
+                  {file.duplex && ` · ${SIDES_LABELS.both}`}
+                  {file.paperSize !== "A4" && ` · ${PAPER_SIZE_LABELS[file.paperSize]}`}
+                </div>
+                {job.files.length > 1 && job.status !== "pending_payment" && (
+                  <div className="mt-1">
+                    <JobStatusBadge status={file.status} />
+                  </div>
+                )}
+              </div>
+              <span className="shrink-0 tabular-nums">{formatTaka(file.amount)}</span>
+            </li>
+          ))}
+        </ul>
 
         <Separator />
 
         <dl className="grid grid-cols-2 gap-y-2 text-sm">
-          <dt className="text-muted-foreground">ফাইল</dt>
-          <dd className="truncate text-right">{job.fileName}</dd>
-          <dt className="text-muted-foreground">পৃষ্ঠা × কপি</dt>
-          <dd className="text-right">
-            {formatNumber(job.pageCount)} × {formatNumber(job.copies)}
-          </dd>
-          <dt className="text-muted-foreground">ধরন</dt>
-          <dd className="text-right">{COLOR_MODE_LABELS[job.colorMode as ColorMode]}</dd>
-          <dt className="text-muted-foreground">মূল্য</dt>
-          <dd className="text-right font-medium">{formatTaka(job.amount)}</dd>
+          <dt className="text-muted-foreground">মোট মূল্য</dt>
+          <dd className="text-right font-semibold">{formatTaka(job.amount)}</dd>
           {job.paymentMethod && (
             <>
               <dt className="text-muted-foreground">পেমেন্ট</dt>
@@ -181,6 +202,7 @@ export function JobStatusView({ initial, paymentResult }: { initial: PublicJobVi
             )}
             {job.shop.payments.cash && (
               <CashCheckout
+                fields={job.shop.cashFields}
                 amount={job.amount}
                 outline
                 pending={paying === "cash"}

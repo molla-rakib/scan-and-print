@@ -1,7 +1,8 @@
 import "server-only"
+import { formatPageSelection, type ColorMode, type JobStatus, type PaperSize } from "@/lib/constants"
 import { connectDb } from "@/lib/db"
-import { availableDevices, paymentOptions, queuePosition, shopIsOpen } from "@/lib/jobs"
-import { Device, Shop, type PrintJobDoc, type ShopDoc } from "@/lib/models"
+import { availableDevices, cashFields, orderStatus, paperOptions, paymentOptions, queuePosition, shopIsOpen } from "@/lib/jobs"
+import { Device, PrintJob, Shop, type OrderDoc, type ShopDoc } from "@/lib/models"
 
 export async function findShopBySlug(slug: string) {
   await connectDb()
@@ -11,7 +12,7 @@ export async function findShopBySlug(slug: string) {
 /** Everything the customer page needs to know about a shop. Never exposes credentials. */
 export async function publicShopView(shop: ShopDoc) {
   const [enabled, online] = await Promise.all([
-    Device.find({ shopId: shop._id, enabled: true }).select("color"),
+    Device.find({ shopId: shop._id, enabled: true }).select("color duplex"),
     availableDevices(shop._id),
   ])
   return {
@@ -19,34 +20,54 @@ export async function publicShopView(shop: ShopDoc) {
     slug: shop.slug,
     address: shop.address,
     open: shopIsOpen(shop),
-    pricing: { bw: shop.pricing?.bw ?? 0, color: shop.pricing?.color ?? 0 },
+    papers: paperOptions(shop),
     payments: paymentOptions(shop),
+    cashFields: cashFields(shop),
     hasColor: enabled.some((d) => d.color),
+    hasDuplex: enabled.some((d) => d.duplex),
     online: online.length > 0,
   }
 }
 
 export type PublicShopView = Awaited<ReturnType<typeof publicShopView>>
 
-export async function publicJobView(job: PrintJobDoc, shop: ShopDoc) {
-  const device = job.deviceId ? await Device.findById(job.deviceId).select("name") : null
+export async function publicOrderView(order: OrderDoc, shop: ShopDoc) {
+  const jobs = await PrintJob.find({ orderId: order._id }).sort({ createdAt: 1 })
+  const devices = await Device.find({ _id: { $in: jobs.map((j) => j.deviceId).filter(Boolean) } }).select("name")
+  const deviceName = (id: unknown) => devices.find((d) => d._id.equals(id as string))?.name ?? null
+
+  const files = await Promise.all(
+    jobs.map(async (job) => ({
+      id: job.id as string,
+      fileName: job.fileName,
+      pageCount: job.pageCount,
+      printPages: job.printPages || job.pageCount,
+      pagesLabel: formatPageSelection(job.pages, job.pageCount),
+      colorMode: job.colorMode as ColorMode,
+      duplex: job.duplex,
+      paperSize: job.paperSize as PaperSize,
+      copies: job.copies,
+      amount: job.amount,
+      status: job.status as JobStatus,
+      error: job.error ?? null,
+      queuePosition: await queuePosition(job),
+      deviceName: job.deviceId ? deviceName(job.deviceId) : null,
+    }))
+  )
+  const positions = files.map((f) => f.queuePosition).filter((p): p is number => p !== null)
+
   return {
-    publicId: job.publicId,
-    token: job.token,
-    status: job.status,
-    fileName: job.fileName,
-    pageCount: job.pageCount,
-    colorMode: job.colorMode,
-    copies: job.copies,
-    amount: job.amount,
-    paymentMethod: job.paymentMethod ?? null,
-    trxId: job.bkash?.trxId ?? null,
-    error: job.error ?? null,
-    queuePosition: await queuePosition(job),
-    deviceName: device?.name ?? null,
-    shop: { name: shop.name, slug: shop.slug, payments: paymentOptions(shop) },
-    updatedAt: job.updatedAt.toISOString(),
+    publicId: order.publicId,
+    token: order.token,
+    status: orderStatus(order, jobs),
+    amount: order.amount,
+    paymentMethod: order.paymentMethod ?? null,
+    trxId: order.bkash?.trxId ?? null,
+    queuePosition: positions.length ? Math.min(...positions) : null,
+    files,
+    shop: { name: shop.name, slug: shop.slug, payments: paymentOptions(shop), cashFields: cashFields(shop) },
+    updatedAt: order.updatedAt.toISOString(),
   }
 }
 
-export type PublicJobView = Awaited<ReturnType<typeof publicJobView>>
+export type PublicOrderView = Awaited<ReturnType<typeof publicOrderView>>

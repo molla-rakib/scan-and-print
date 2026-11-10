@@ -51,6 +51,7 @@ pub struct PrinterReport {
     pub system_name: String,
     pub color: bool,
     pub duplex: bool,
+    pub paper_sizes: Vec<String>,
     pub state: String,
 }
 
@@ -82,6 +83,15 @@ pub struct Job {
     /// "bw" or "color".
     pub color_mode: String,
     pub copies: u32,
+    /// Pages to print as SumatraPDF ranges ("1-3,5"); None prints every page.
+    #[serde(default)]
+    pub pages: Option<String>,
+    /// Print on both sides of the paper.
+    #[serde(default)]
+    pub duplex: bool,
+    /// "A4", "Legal" or "A3"; None means A4.
+    #[serde(default)]
+    pub paper_size: Option<String>,
 }
 
 pub struct Client {

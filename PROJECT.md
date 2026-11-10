@@ -3,7 +3,7 @@
 Living document: the goal, the decisions behind the design, what is done, and what comes next.
 Update it whenever a feature lands, a decision changes, or a question gets answered.
 
-_Last updated: 2026-11-07_
+_Last updated: 2026-11-10_
 
 ---
 
@@ -101,7 +101,7 @@ that Windows can print to will work.
 ### 🔜 Next: Phase 2, Windows print agent (Rust)
 
 Code lives in `agent/` (see `agent/README.md`). Release with `agent/release.ps1`, which publishes
-`public/downloads/ScanAndPrintAgent.exe` + `agent.json`. Version 1.0.0 is built for `https://scan-and-print.vercel.app`.
+`public/downloads/ScanAndPrintAgent.exe` + `agent.json`. Version 1.0.0 is built for `https://scan-and-print.vercel.app`; 1.1.0 (print options) is coded but not released yet.
 
 - [x] Pairing: `scan-print-agent pair <CODE>`, token saved encrypted with Windows DPAPI
 - [x] Enumerate installed Windows printers + detect color/duplex capability and state (offline, paper out, …);
@@ -126,6 +126,23 @@ Code lives in `agent/` (see `agent/README.md`). Release with `agent/release.ps1`
       the current job, replaces itself and restarts. *(Tested 1.0.0 → 1.0.1)*
 - [x] App icon + version info embedded in the exe
 - [ ] Code-signing certificate so Windows does not show the "unknown publisher" warning
+
+### 🔜 Phase 2.5: More print options + settings redesign (agreed 2026-11-10)
+
+- [x] Settings split into sections with their own menu: দোকানের তথ্য, প্রিন্টের দাম, পেমেন্ট
+      (`/dashboard/settings`, `/pricing`, `/payment`; scrollable tabs on phones)
+- [x] Cash: owner switches for asking the customer's name and/or mobile number (shown = required; at least one on)
+- [x] Page selection: page previews with a checkbox on each (plus all/none and typed ranges like "১-৩, ৫"); price counts selected pages only
+- [x] Both sides (duplex), for B/W and color, same price per printed side; hidden when no enabled printer can duplex
+- [x] Paper size A4 / Legal / A3: A4 always on; the owner turns on Legal/A3 with their own prices (Settings → প্রিন্টের দাম).
+      Agent 1.1.0 reports each printer's sizes; jobs only go to printers that support them
+- [x] Several files in one order (one payment + token), each file with its own color, copies, pages, sides and size.
+      New `Order` model; each file is a print job routed on its own. `npm run migrate:orders` moves old jobs
+- [x] JPG/PNG upload, converted to a one-page A4 PDF on the server. Word (DOC/DOCX) skipped for now; customers save as PDF.
+- [x] Agent 1.1.0 (code): page ranges, duplex and paper size via SumatraPDF `-print-settings`; reports paper sizes.
+      Jobs needing these options only go to agents ≥ 1.1.0 (older ones would print every page on A4)
+- [ ] Release agent 1.1.0 (`agent/release.ps1` on Windows) and run `npm run migrate:orders` on the production database
+- [ ] Test page ranges, duplex and Legal/A3 on a real printer
 
 ### 📋 Phase 3: Production launch
 
@@ -170,3 +187,6 @@ Code lives in `agent/` (see `agent/README.md`). Release with `agent/release.ps1`
 | 2026-11-07 | Landing page redesigned with a print-shop identity (CMYK accents, paper texture, live-queue ticker, before/after, bento features, receipt-style pricing; hero shows a printer feeding out the order slip with token, QR poster and cash-alert note). Admin panel moved into the dashboard at `/dashboard/admin` (`/admin` redirects; sidebar works for admins without a shop). Fixed the sidebar profile menu crash (Base UI `GroupLabel` outside `Group`) and added Settings/Admin links to it. Font switched to Noto Sans Bengali site-wide. |
 | 2026-11-07 | Print agent 1.0.0 finished: self-installing per-user exe with shortcuts and uninstall, auto-update via `/downloads/agent.json`, SumatraPDF downloaded on first start, embedded icon, production server `https://scan-and-print.vercel.app` built in, `agent/release.ps1`. Dashboard → ডিভাইস has an "এজেন্ট ডাউনলোড" button. Tested on the dev PC against a local server: install, pairing window, cash popup + approve, auto-update 1.0.0 → 1.0.1, uninstall. Not yet tested on a real printer. |
 | 2026-11-07 | **Cash orders no longer need approval**: the customer enters name + mobile number (validated; Bangla digits and +88 accepted) and the job is queued immediately. Removed the approval cards, sidebar badge, agent popup and `/api/agent/approvals`; old `awaiting_approval` jobs can still be printed or cancelled from the order menu. Dashboard shows the customer on cash orders, chimes with who owes how much, and the overview shows today's cash to collect. The pairing dialog now shows the PC connecting live (waiting → connected → printers found). Agent: status window instead of the popup, redesigned pairing window, SumatraPDF download retried every minute. |
+| 2026-11-10 | Local MongoDB volume reset (old data was FCV 7.0, which mongo 8.2 cannot open). Agreed the next feature set (Phase 2.5): page selection with previews, duplex, paper sizes, multiple files per order, images; Word skipped. Settings page redesigned into sections with a side menu; cash orders ask for name and/or phone per the owner's switches. |
+| 2026-11-10 | **Phase 2.5 done.** Orders can hold up to 20 files (PDF, JPG, PNG), each with its own pages (picked on page previews), color, both sides, paper size (A4/Legal/A3) and copies; one token and one payment. New `Order` model (payment, customer, token) with print jobs per file; public API moved to `/api/public/orders`. Settings → প্রিন্টের দাম has Legal/A3 switches and prices. Agent 1.1.0 prints page ranges, duplex and paper size and reports printers' paper sizes; such jobs never go to older agents. Tested end-to-end with the dev agent (two files in one order, pages 1,3-5 duplex Legal → duplex printer, photo → color printer, ৳42 total). |
+| 2026-11-10 | Admin income fixed: "মাসিক আয় (সক্রিয়)" estimated devices × fee for every open shop (trials included). Now "মেয়াদ বাড়ান" also asks for the amount received (pre-filled from devices × fee × months), stored as a `SubscriptionPayment`, and "এই মাসের আয়" adds up only this month's real payments. Settings text trimmed to titles; price inputs larger with "টাকা". |

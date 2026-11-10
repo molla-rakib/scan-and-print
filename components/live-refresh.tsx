@@ -26,7 +26,7 @@ export function LiveRefresh({ latestCash, intervalMs = 5000 }: { latestCash?: La
     const token = latestCash?.token
     if (latestCash && token !== previous.current) {
       toast.info(`নতুন ক্যাশ অর্ডার ${formatToken(latestCash.token)}`, {
-        description: `${latestCash.name} — কাউন্টারে ${formatTaka(latestCash.amount)} নিতে হবে`,
+        description: `${latestCash.name ? `${latestCash.name} — ` : ""}কাউন্টারে ${formatTaka(latestCash.amount)} নিতে হবে`,
         duration: 15_000,
       })
       chime()

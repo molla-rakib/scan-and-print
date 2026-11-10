@@ -4,7 +4,7 @@ import { refresh } from "next/cache"
 import { isValidObjectId } from "mongoose"
 import { fail, type ActionResult } from "@/lib/action-result"
 import { requireAdmin } from "@/lib/auth"
-import { Shop } from "@/lib/models"
+import { Shop, SubscriptionPayment } from "@/lib/models"
 
 async function findShop(shopId: string) {
   await requireAdmin()
@@ -21,14 +21,20 @@ export async function setDeviceLimit(shopId: string, limit: number): Promise<Act
   return { ok: true }
 }
 
-/** Records a payment: extends the subscription by `days` from today or from the current end date, whichever is later. */
-export async function extendSubscription(shopId: string, days: number): Promise<ActionResult> {
+/**
+ * Records a payment: extends the subscription by `days` from today or from the current end date, whichever
+ * is later, and stores the amount received (0 for a free extension, which doesn't count as income).
+ */
+export async function extendSubscription(shopId: string, days: number, amount: number): Promise<ActionResult> {
+  const admin = await requireAdmin()
   const shop = await findShop(shopId)
   if (!shop) return fail("দোকান পাওয়া যায়নি।")
   if (!Number.isInteger(days) || days < 1 || days > 366) return fail("সঠিক দিন সংখ্যা দিন।")
+  if (!Number.isFinite(amount) || amount < 0 || amount > 1_000_000) return fail("সঠিক টাকার পরিমাণ দিন।")
   const from = Math.max(Date.now(), shop.paidUntil.getTime())
   shop.paidUntil = new Date(from + days * 24 * 60 * 60 * 1000)
   await shop.save()
+  await SubscriptionPayment.create({ shopId: shop._id, amount, days, paidUntil: shop.paidUntil, recordedBy: admin.email })
   refresh()
   return { ok: true }
 }

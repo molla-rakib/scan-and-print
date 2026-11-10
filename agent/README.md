@@ -70,8 +70,8 @@ server used for pairing (also for the installed app, if set when the installer r
 | `src/gui.rs` | Tray app (tao event loop + tray-icon): status icon and menu, pairing and status windows (wry web views showing `ui/*.html`), SumatraPDF download, update checks |
 | `src/runner.rs` | Printing thread: heartbeat every 30 s, poll for a job every 3 s, back off 5–60 s while offline, stop when the PC is removed in the dashboard |
 | `src/api.rs` | HTTP client (`ureq`). Downloads job PDFs from our own server URL so the token never goes elsewhere |
-| `src/printers.rs` | `EnumPrintersW` + `DeviceCapabilitiesW`: name, color, duplex, state (offline, paper out, …) |
-| `src/print.rs` | Prints through `SumatraPDF.exe -print-to <printer> -print-settings "monochrome,2x,shrink" -silent` |
+| `src/printers.rs` | `EnumPrintersW` + `DeviceCapabilitiesW`: name, color, duplex, paper sizes (A4/Legal/A3), state (offline, paper out, …) |
+| `src/print.rs` | Prints through `SumatraPDF.exe -print-to <printer> -print-settings "monochrome,2x,1-3,5,duplexlong,paper=A4,shrink" -silent` (pages, both sides and paper size since 1.1.0; other sizes use `fit`) |
 | `src/install.rs` | Per-user install / update / uninstall: copy, shortcuts, Installed-apps entry |
 | `src/update.rs` | `agent.json` check, verified downloads (agent updates and SumatraPDF) |
 | `src/system.rs` | Start with Windows (HKCU `Run`), single instance, quit/show signals between copies, message boxes |

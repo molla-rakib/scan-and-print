@@ -69,9 +69,14 @@ export async function updateShopProfile(input: z.input<typeof profileSchema>): P
   return { ok: true }
 }
 
+const price = z.number().min(0).max(1000)
+const extraPaperSchema = z.object({ enabled: z.boolean(), bw: price, color: price })
+
+// A4 prices plus the optional Legal and A3 sizes.
 const pricingSchema = z.object({
-  bw: z.number().min(0).max(1000),
-  color: z.number().min(0).max(1000),
+  bw: price,
+  color: price,
+  paperSizes: z.object({ Legal: extraPaperSchema, A3: extraPaperSchema }),
 })
 
 export async function updatePricing(input: z.input<typeof pricingSchema>): Promise<ActionResult> {
@@ -79,7 +84,8 @@ export async function updatePricing(input: z.input<typeof pricingSchema>): Promi
   const parsed = pricingSchema.safeParse(input)
   if (!parsed.success) return fail("সঠিক দাম দিন।")
 
-  shop.set({ pricing: parsed.data })
+  const { paperSizes, ...a4 } = parsed.data
+  shop.set({ pricing: a4, paperSizes })
   await shop.save()
   refresh()
   return { ok: true }
@@ -87,9 +93,15 @@ export async function updatePricing(input: z.input<typeof pricingSchema>): Promi
 
 /* --------------------------------- Payments -------------------------------- */
 
-export async function updateCashMode(enabled: boolean): Promise<ActionResult> {
+const cashSchema = z
+  .object({ enabled: z.boolean(), askName: z.boolean(), askPhone: z.boolean() })
+  .refine((cash) => cash.askName || cash.askPhone, "নাম বা মোবাইল নম্বর — অন্তত একটি চালু রাখতে হবে।")
+
+export async function updateCashSettings(input: z.input<typeof cashSchema>): Promise<ActionResult> {
   const { shop } = await requireShop()
-  shop.set({ "cash.enabled": enabled })
+  const parsed = cashSchema.safeParse(input)
+  if (!parsed.success) return fail(firstError(parsed.error))
+  shop.set({ cash: parsed.data })
   await shop.save()
   refresh()
   return { ok: true }

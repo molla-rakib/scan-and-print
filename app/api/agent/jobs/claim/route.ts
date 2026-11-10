@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { authenticateAgent, jsonError } from "@/lib/api"
+import { pagesToRanges } from "@/lib/constants"
 import { rebalanceQueue } from "@/lib/jobs"
 import { Device, PrintJob } from "@/lib/models"
 import { env } from "@/lib/env"
@@ -37,6 +38,10 @@ export async function POST(request: Request) {
       printer: device.systemName,
       colorMode: job.colorMode,
       copies: job.copies,
+      // Agents 1.1.0+. Pages as SumatraPDF ranges ("1-3,5"), null for every page.
+      pages: job.pages.length ? pagesToRanges(job.pages) : null,
+      duplex: job.duplex,
+      paperSize: job.paperSize,
     },
   })
 }

@@ -144,7 +144,13 @@ fn heartbeat(
     let reports: Vec<PrinterReport> = list
         .into_iter()
         .filter(|p| opts.include_virtual || p.skip_reason.is_none())
-        .map(|p| PrinterReport { system_name: p.name, color: p.color, duplex: p.duplex, state: p.state.to_string() })
+        .map(|p| PrinterReport {
+            system_name: p.name,
+            color: p.color,
+            duplex: p.duplex,
+            paper_sizes: p.paper_sizes.iter().map(|s| s.to_string()).collect(),
+            state: p.state.to_string(),
+        })
         .collect();
 
     let response = client.heartbeat(&machine_name(), VERSION, &reports)?;
@@ -164,13 +170,22 @@ fn heartbeat(
 
 /// Downloads, prints and reports one job. Returns whether it printed.
 fn process_job(client: &Client, job: &Job, work_dir: &Path, dry_run: bool) -> bool {
+    let options = print::PrintOptions {
+        color: job.color_mode == "color",
+        copies: job.copies,
+        pages: job.pages.as_deref(),
+        duplex: job.duplex,
+        paper_size: job.paper_size.as_deref(),
+    };
     log(&format!(
-        "Job #{}: {} page(s) x {} cop{} ({}) -> {}",
+        "Job #{}: {} x {} cop{} ({}, {}, {}) -> {}",
         job.token,
-        job.page_count,
+        job.pages.as_deref().map_or_else(|| format!("{} page(s)", job.page_count), |p| format!("pages {p}")),
         job.copies,
         if job.copies == 1 { "y" } else { "ies" },
-        if job.color_mode == "color" { "color" } else { "B/W" },
+        if options.color { "color" } else { "B/W" },
+        if options.duplex { "both sides" } else { "one side" },
+        options.paper_size.unwrap_or("A4"),
         job.printer
     ));
 
@@ -193,7 +208,7 @@ fn process_job(client: &Client, job: &Job, work_dir: &Path, dry_run: bool) -> bo
             let Some(sumatra) = print::find_sumatra() else {
                 return Err("দোকানের কম্পিউটারে প্রিন্ট সফটওয়্যার (SumatraPDF) পাওয়া যায়নি".to_string());
             };
-            print::print_pdf(&sumatra, &file, &job.printer, job.color_mode == "color", job.copies)
+            print::print_pdf(&sumatra, &file, &job.printer, &options)
         });
 
     // Customer documents never stay on the shop PC.

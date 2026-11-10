@@ -4,18 +4,23 @@ import { useState } from "react"
 import { BanknoteIcon, StoreIcon, TagIcon } from "lucide-react"
 import { BkashLogo } from "@/components/bkash"
 import { IconTile } from "@/components/icon-tile"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldTitle } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import { useAction } from "@/components/use-action"
 import { slugify } from "@/lib/slug"
-import { updateBkash, updateCashMode, updatePricing, updateShopProfile } from "../actions"
+import { cn } from "@/lib/utils"
+import { updateBkash, updateCashSettings, updatePricing, updateShopProfile } from "../actions"
 
 const SAVED = "Save হয়েছে"
+
+// Inside the settings panel the cards are plain sections split by hairlines, without their own frame.
+const SECTION = "gap-6 overflow-visible rounded-none bg-transparent py-0! ring-0 [--card-spacing:0px]"
+const SECTION_FOOTER = "justify-end border-t-0 bg-transparent"
 
 export function ProfileForm({
   appUrl,
@@ -30,7 +35,7 @@ export function ProfileForm({
     setForm({ ...form, [key]: key === "slug" ? slugify(e.target.value) : e.target.value })
 
   return (
-    <Card>
+    <Card className={SECTION}>
       <form
         className="contents"
         onSubmit={(e) => {
@@ -41,10 +46,7 @@ export function ProfileForm({
         <CardHeader>
           <div className="flex items-center gap-3">
             <IconTile icon={StoreIcon} tone="blue" />
-            <div>
-              <CardTitle>দোকানের তথ্য</CardTitle>
-              <CardDescription>গ্রাহক এই তথ্য দেখতে পাবে।</CardDescription>
-            </div>
+            <CardTitle>দোকানের তথ্য</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
@@ -56,8 +58,8 @@ export function ProfileForm({
             <Field>
               <FieldLabel htmlFor="slug">দোকানের লিংক</FieldLabel>
               <Input id="slug" required value={form.slug} onChange={set("slug")} />
-              <FieldDescription>
-                {appUrl}/s/{form.slug} — লিংক বদলালে নতুন QR কোড প্রিন্ট করতে হবে।
+              <FieldDescription className="break-all">
+                {appUrl}/s/{form.slug}
               </FieldDescription>
             </Field>
             <Field>
@@ -70,7 +72,7 @@ export function ProfileForm({
             </Field>
           </FieldGroup>
         </CardContent>
-        <CardFooter className="justify-end border-t pt-4">
+        <CardFooter className={SECTION_FOOTER}>
           <Button type="submit" disabled={pending}>
             {pending && <Spinner />} Save
           </Button>
@@ -80,50 +82,100 @@ export function ProfileForm({
   )
 }
 
-export function PricingForm({ initial }: { initial: { bw: number; color: number } }) {
+type PaperPrices = { enabled: boolean; bw: number; color: number }
+type Pricing = { bw: number; color: number; paperSizes: { Legal: PaperPrices; A3: PaperPrices } }
+
+const PAPER_ROWS = [
+  { key: "A4", title: "A4" },
+  { key: "Legal", title: "লিগ্যাল (Legal)" },
+  { key: "A3", title: "A3" },
+] as const
+
+/** A large number input ending in "টাকা". */
+function PriceInput({ id, label, value, onChange }: { id: string; label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <Field>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <div className="relative">
+        <Input
+          id={id}
+          type="number"
+          inputMode="decimal"
+          min={0}
+          step="0.5"
+          required
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-12 [appearance:textfield] pr-16 text-lg font-semibold tabular-nums [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        />
+        <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-muted-foreground">টাকা</span>
+      </div>
+    </Field>
+  )
+}
+
+export function PricingForm({ initial }: { initial: Pricing }) {
   const { pending, run } = useAction()
-  const [bw, setBw] = useState(String(initial.bw))
-  const [color, setColor] = useState(String(initial.color))
+  // Inputs are kept as text so the fields can be cleared while typing.
+  const toForm = (p: { enabled?: boolean; bw: number; color: number }) => ({
+    enabled: p.enabled ?? true,
+    bw: String(p.bw),
+    color: String(p.color),
+  })
+  const [form, setForm] = useState({
+    A4: toForm(initial),
+    Legal: toForm(initial.paperSizes.Legal),
+    A3: toForm(initial.paperSizes.A3),
+  })
+  const update = (key: keyof typeof form, patch: Partial<(typeof form)["A4"]>) => setForm({ ...form, [key]: { ...form[key], ...patch } })
+  const toPrices = (p: (typeof form)["A4"]) => ({ enabled: p.enabled, bw: Number(p.bw), color: Number(p.color) })
 
   return (
-    <Card>
+    <Card className={SECTION}>
       <form
         className="contents"
         onSubmit={(e) => {
           e.preventDefault()
-          run(() => updatePricing({ bw: Number(bw), color: Number(color) }), { success: SAVED })
+          const { bw, color } = toPrices(form.A4)
+          run(() => updatePricing({ bw, color, paperSizes: { Legal: toPrices(form.Legal), A3: toPrices(form.A3) } }), {
+            success: SAVED,
+          })
         }}
       >
         <CardHeader>
           <div className="flex items-center gap-3">
             <IconTile icon={TagIcon} tone="emerald" />
-            <div>
-              <CardTitle>প্রিন্টের দাম</CardTitle>
-              <CardDescription>প্রতি পৃষ্ঠার দাম (টাকা)। মোট = পৃষ্ঠা × কপি × দাম।</CardDescription>
-            </div>
+            <CardTitle>প্রিন্টের দাম (প্রতি পৃষ্ঠা)</CardTitle>
           </div>
         </CardHeader>
-        <CardContent>
-          <FieldGroup className="grid grid-cols-1 sm:grid-cols-2">
-            <Field>
-              <FieldLabel htmlFor="bw">সাদা-কালো (৳)</FieldLabel>
-              <Input id="bw" type="number" min={0} step="0.5" required value={bw} onChange={(e) => setBw(e.target.value)} />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="color">রঙিন (৳)</FieldLabel>
-              <Input
-                id="color"
-                type="number"
-                min={0}
-                step="0.5"
-                required
-                value={color}
-                onChange={(e) => setColor(e.target.value)}
-              />
-            </Field>
-          </FieldGroup>
+        <CardContent className="flex flex-col gap-4">
+          {PAPER_ROWS.map(({ key, title }) => {
+            const row = form[key]
+            const always = key === "A4"
+            return (
+              <div key={key} className={cn("flex flex-col gap-4 rounded-lg border p-4", !row.enabled && "bg-muted/40")}>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-base font-semibold">{title}</span>
+                  {/* A4 is always offered. */}
+                  {!always && (
+                    <Switch
+                      checked={row.enabled}
+                      onCheckedChange={(enabled) => update(key, { enabled })}
+                      aria-label={`${title} চালু`}
+                    />
+                  )}
+                </div>
+                {row.enabled && (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <PriceInput id={`${key}-bw`} label="সাদা-কালো" value={row.bw} onChange={(bw) => update(key, { bw })} />
+                    <PriceInput id={`${key}-color`} label="রঙিন" value={row.color} onChange={(color) => update(key, { color })} />
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </CardContent>
-        <CardFooter className="justify-end border-t pt-4">
+        <CardFooter className={SECTION_FOOTER}>
           <Button type="submit" disabled={pending}>
             {pending && <Spinner />} Save
           </Button>
@@ -133,34 +185,68 @@ export function PricingForm({ initial }: { initial: { bw: number; color: number 
   )
 }
 
-export function CashForm({ enabled }: { enabled: boolean }) {
+type CashSettings = { enabled: boolean; askName: boolean; askPhone: boolean }
+
+export function CashForm({ initial }: { initial: CashSettings }) {
   const { pending, run } = useAction()
+  const [cash, setCash] = useState(initial)
+
+  function save(next: CashSettings, success: string) {
+    const previous = cash
+    setCash(next)
+    run(() => updateCashSettings(next), { success, onError: () => setCash(previous) })
+  }
+
+  const fields = [
+    { key: "askName", title: "গ্রাহকের নাম" },
+    { key: "askPhone", title: "মোবাইল নম্বর" },
+  ] as const
+
   return (
-    <Card>
+    <Card className={SECTION}>
       <CardHeader>
         <div className="flex items-center gap-3">
-            <IconTile icon={BanknoteIcon} tone="amber" />
-            <div>
-              <CardTitle>ক্যাশ পেমেন্ট</CardTitle>
-            </div>
-          </div>
+          <IconTile icon={BanknoteIcon} tone="amber" />
+          <CardTitle>ক্যাশ পেমেন্ট</CardTitle>
+        </div>
       </CardHeader>
       <CardContent>
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>কাউন্টারে ক্যাশ নিন</FieldTitle>
-            <FieldDescription>
-              গ্রাহক &quot;ক্যাশ&quot; বেছে নিলে নাম ও মোবাইল নম্বর দিয়ে অর্ডার দেবে, অর্ডারটি সাথে সাথে প্রিন্ট হবে।
-              কাউন্টারে টোকেন মিলিয়ে টাকা নিন। নতুন ক্যাশ অর্ডারে ড্যাশবোর্ডে শব্দ হবে।
-            </FieldDescription>
-          </FieldContent>
-          <Switch
-            checked={enabled}
-            disabled={pending}
-            onCheckedChange={(value) => run(() => updateCashMode(value), { success: value ? "ক্যাশ পেমেন্ট চালু" : "ক্যাশ পেমেন্ট বন্ধ" })}
-            aria-label="ক্যাশ পেমেন্ট"
-          />
-        </Field>
+        <FieldGroup>
+          <Field orientation="horizontal">
+            <FieldContent>
+              <FieldTitle>কাউন্টারে ক্যাশ নিন</FieldTitle>
+            </FieldContent>
+            <Switch
+              checked={cash.enabled}
+              disabled={pending}
+              onCheckedChange={(enabled) =>
+                save({ ...cash, enabled }, enabled ? "ক্যাশ পেমেন্ট চালু" : "ক্যাশ পেমেন্ট বন্ধ")
+              }
+              aria-label="ক্যাশ পেমেন্ট"
+            />
+          </Field>
+
+          <div className={cn("flex flex-col gap-4 rounded-lg border bg-muted/40 p-4", !cash.enabled && "opacity-60")}>
+            <p className="text-sm font-medium">গ্রাহকের কাছে যা চাওয়া হবে</p>
+            {fields.map(({ key, title }) => {
+              const other = key === "askName" ? cash.askPhone : cash.askName
+              return (
+                <Field key={key} orientation="horizontal">
+                  <FieldContent>
+                    <FieldTitle>{title}</FieldTitle>
+                  </FieldContent>
+                  <Switch
+                    checked={cash[key]}
+                    // The last field that is on can't be switched off.
+                    disabled={pending || !cash.enabled || (cash[key] && !other)}
+                    onCheckedChange={(value) => save({ ...cash, [key]: value }, SAVED)}
+                    aria-label={title}
+                  />
+                </Field>
+              )
+            })}
+          </div>
+        </FieldGroup>
       </CardContent>
     </Card>
   )
@@ -185,7 +271,7 @@ export function BkashForm({ appUrl, initial }: { appUrl: string; initial: BkashI
   const [appSecret, setAppSecret] = useState("")
 
   return (
-    <Card>
+    <Card className={SECTION}>
       <form
         className="contents"
         onSubmit={(e) => {
@@ -202,16 +288,12 @@ export function BkashForm({ appUrl, initial }: { appUrl: string; initial: BkashI
         <CardHeader>
           <div className="flex items-center gap-3">
             <BkashLogo className="h-10 shrink-0 rounded-md border border-[#E2136E]/25 px-2.5 [&_img]:h-6" />
-            <div>
-              <CardTitle>বিকাশ মার্চেন্ট</CardTitle>
-              <CardDescription>গ্রাহকের পেমেন্ট সরাসরি আপনার বিকাশ মার্চেন্ট অ্যাকাউন্টে জমা হবে।</CardDescription>
-            </div>
+            <CardTitle>বিকাশ মার্চেন্ট</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
           <FieldGroup>
             <Alert>
-              <AlertTitle>বিকাশ পেমেন্ট গেটওয়ে (PGW) অ্যাক্সেস প্রয়োজন</AlertTitle>
               <AlertDescription>
                 শুধু মার্চেন্ট নম্বর থাকলে হবে না। বিকাশ থেকে Tokenized Checkout-এর Username, Password, App Key ও App Secret নিতে হবে।
                 বিকাশকে Callback URL হিসেবে দিন: <span className="font-medium break-all">{appUrl}/api/bkash/callback</span>
@@ -221,7 +303,6 @@ export function BkashForm({ appUrl, initial }: { appUrl: string; initial: BkashI
             <Field orientation="horizontal">
               <FieldContent>
                 <FieldTitle>বিকাশ পেমেন্ট চালু করুন</FieldTitle>
-                <FieldDescription>Save করার সময় ক্রেডেনশিয়াল যাচাই করা হবে।</FieldDescription>
               </FieldContent>
               <Switch checked={enabled} onCheckedChange={setEnabled} aria-label="বিকাশ পেমেন্ট" />
             </Field>
@@ -229,7 +310,6 @@ export function BkashForm({ appUrl, initial }: { appUrl: string; initial: BkashI
             <Field orientation="horizontal">
               <FieldContent>
                 <FieldTitle>টেস্ট মোড (Sandbox)</FieldTitle>
-                <FieldDescription>বিকাশের টেস্ট ক্রেডেনশিয়াল দিয়ে পরীক্ষা করার জন্য। আসল পেমেন্ট নিতে বন্ধ করুন।</FieldDescription>
               </FieldContent>
               <Switch checked={sandbox} onCheckedChange={setSandbox} aria-label="টেস্ট মোড" />
             </Field>
@@ -266,10 +346,9 @@ export function BkashForm({ appUrl, initial }: { appUrl: string; initial: BkashI
                 />
               </Field>
             </div>
-            <FieldDescription>Password ও App Secret ফাঁকা রাখলে আগের সংরক্ষিত মান থাকবে। সব তথ্য এনক্রিপ্ট করে রাখা হয়।</FieldDescription>
           </FieldGroup>
         </CardContent>
-        <CardFooter className="justify-end border-t pt-4">
+        <CardFooter className={SECTION_FOOTER}>
           <Button type="submit" disabled={pending}>
             {pending && <Spinner />} Save ও যাচাই করুন
           </Button>

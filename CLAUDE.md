@@ -10,7 +10,7 @@ Three roles:
 
 - **Admin**: Google accounts listed in `ADMIN_EMAILS`, at `/dashboard/admin` (inside the same dashboard shell; `/admin` redirects there).
 - **Shop owner**: Google login, at `/dashboard`.
-- **Customer**: no login. Uses `/s/[slug]` to order and `/j/[publicId]` to watch the job.
+- **Customer**: no login. Uses `/s/[slug]` to order and `/j/[publicId]` to watch the order.
 
 **`PROJECT.md` is the project tracker**: goals, design decisions, what's done, the roadmap and open items. Read it before starting work. Update it when a feature lands, a decision changes or a question is answered: tick the checkboxes, add a change-log row and bump the date.
 
@@ -50,19 +50,22 @@ Next.js (pages + route handlers + server actions) ◄──HTTPS polling── P
 
 ### Data and services
 
-- **`lib/models.ts`** holds all Mongoose models: User, Shop, Agent (shop PC), Device (printer), PrintJob.
-  - Shop's `pricing`, `bkash` and `cash` fields are required subdocuments with defaults, so they're typed as non-optional.
-  - Abandoned draft jobs are removed by a TTL index on `draftExpiresAt`.
+- **`lib/models.ts`** holds all Mongoose models: User, Shop, Agent (shop PC), Device (printer), Order, PrintJob.
+  - An **Order** is what the customer pays for: token, payment, customer, amount. Each uploaded file is one **PrintJob** (`orderId`) with its own color, copies, `pages` (empty = all), `duplex` and `paperSize`; jobs are routed and printed one by one.
+  - Shop's `paperSizes.Legal` / `paperSizes.A3` are optional sizes with their own prices; A4 always uses `pricing`.
+  - Shop's `pricing`, `paperSizes`, `bkash` and `cash` fields are required subdocuments with defaults, so they're typed as non-optional.
+  - Abandoned draft orders and jobs are removed by TTL indexes on `draftExpiresAt`.
+  - `scripts/migrate-orders.mjs` (`npm run migrate:orders`) moved pre-2026-11-10 single-file jobs into orders; run it once against any database that has old jobs.
 - **`lib/env.ts`** wraps env vars in getters, so missing vars fail at use time, not at build time.
 - **`lib/storage.ts`** stores PDFs in MongoDB GridFS (bucket `printFiles`) only until printed. `sweepOrphanFiles()` (run from agent claim, hourly) deletes day-old files no unprinted job needs.
 
 ### Job lifecycle (`lib/jobs.ts`)
 
-1. **Draft.** The browser posts the PDF (multipart) to `POST /api/public/jobs`, which validates the PDF, counts pages with pdf-lib, and creates a `draft` job.
-2. **Checkout.** `POST /api/public/jobs/[publicId]/checkout` moves the job to one of:
-   - `pending_payment` (bKash), which then goes to `queued` via `/api/bkash/callback`;
-   - `queued` directly (cash). Cash requires the customer's name and mobile number (`customer`, checked with `normalizeBdPhone`); there is no approval step. `awaiting_approval` only exists on old jobs.
-3. **Queueing.** `queueJob()` transitions atomically and calls `pickDevice()`. Color jobs need a color device; B/W jobs prefer mono devices, with load-balancing across active jobs.
+1. **Draft.** The browser posts each file (multipart) to `POST /api/public/orders`, one at a time. The first upload creates a `draft` Order; later ones pass `order` to join it. PDFs are page-counted with pdf-lib; JPG/PNG photos become a one-page A4 PDF (`preparePrintFile` in `lib/pdf.ts`). Word files are not accepted. `DELETE /api/public/orders/[publicId]/files/[fileId]` removes a file before paying. Page previews are drawn in the browser with pdf.js (`app/s/[slug]/preview.ts`).
+2. **Checkout.** `POST /api/public/orders/[publicId]/checkout` takes the options of every file, prices them (`pricePerPage(shop, paperSize, colorMode)`, the same per printed side for duplex) and moves the order to one of:
+   - `pending_payment` (bKash), which then goes to `placed` via `/api/bkash/callback?order=…`;
+   - `placed` directly (cash). Cash asks for the customer's name and/or mobile number, per the shop's `cash.askName` / `cash.askPhone` switches (`cashFields()` in `lib/jobs.ts`; phone checked with `normalizeBdPhone`); there is no approval step. `awaiting_approval` only exists on old jobs.
+3. **Queueing.** `placeOrder()` marks the order placed atomically and calls `queueJob()` for each file, which calls `pickDevice()`. A device must support the job's color, duplex and paper size (`deviceCanPrint`); jobs that pick pages, print both sides or use Legal/A3 only go to agents ≥ `MIN_AGENT_VERSION_FOR_OPTIONS` (1.1.0), because older agents would print every page on A4. B/W jobs prefer mono devices, with load-balancing across active jobs. The order's displayed status is derived from its jobs (`orderStatus()`).
 4. **Re-routing.** `rebalanceQueue()` re-routes queued jobs whose device or agent went offline. An agent counts as online if seen within `AGENT_ONLINE_WINDOW_MS`.
 5. **Printing.** The agent claims the job (`printing`), then reports `completed` or `failed`. The PDF is deleted on completion; failed jobs keep the file so they can be reprinted.
 
@@ -72,7 +75,8 @@ Agents authenticate with a bearer token; only its SHA-256 hash is stored.
 
 - `pair` exchanges a one-time code (created by `createPairingCode` in `app/dashboard/actions.ts`) for a token.
 - `heartbeat` upserts the agent's printers. New devices default to `enabled: false`, and enabled devices count against `shop.deviceLimit`.
-- `jobs/claim` returns the next job; the agent downloads it from `jobs/[id]/file` with its bearer token.
+- `heartbeat` also takes each printer's supported `paperSizes` (agent 1.1.0+).
+- `jobs/claim` returns the next job, including `pages` (SumatraPDF ranges like `"1-3,5"`, or null), `duplex` and `paperSize`; the agent downloads it from `jobs/[id]/file` with its bearer token.
 - `jobs/[id]` reports the result.
 
 The real Windows agent is a Rust tray app in `agent/` (see `agent/README.md`; tao + wry + tray-icon, popups are `agent/ui/*.html`). The release exe installs itself per user and runs as a tray app; debug builds (`cargo build`) run in place against `http://localhost:3000`, and `scan-print-agent pair <CODE>` / `run [--dry-run --include-virtual]` are console commands for testing. It prints through the SumatraPDF CLI (downloaded from `public/downloads/` on first start, hash pinned in `agent/src/update.rs`). `scripts/dev-agent.mjs` speaks the same protocol for testing.
@@ -89,8 +93,8 @@ The real Windows agent is a Rust tray app in `agent/` (see `agent/README.md`; ta
 
 - **bKash Tokenized Checkout** lives in `lib/bkash.ts`. Each shop uses its own merchant credentials (password and app secret are AES-256-GCM encrypted with `ENCRYPTION_KEY`), and tokens are cached in memory.
 - **The callback is idempotent.** It only acts on `pending_payment` jobs and falls back to a status query when execute fails.
-- **Cash** jobs print immediately; the customer gives name + phone (`components/cash-checkout.tsx`). The dashboard polls via `components/live-refresh.tsx` and chimes with the customer and amount when a new cash job arrives (`latestCashOrder` in `lib/jobs.ts`).
-- **Billing.** Shops pay `DEVICE_MONTHLY_FEE` per enabled device; new shops start with a `TRIAL_DAYS` trial. The admin extends `paidUntil` manually.
+- **Cash** jobs print immediately; the customer gives name and/or phone as the shop's switches ask (`components/cash-checkout.tsx`). The dashboard polls via `components/live-refresh.tsx` and chimes with the customer and amount when a new cash job arrives (`latestCashOrder` in `lib/jobs.ts`).
+- **Billing.** Shops pay `DEVICE_MONTHLY_FEE` per enabled device; new shops start with a `TRIAL_DAYS` trial. The admin extends `paidUntil` manually and enters the amount received, which is stored as a `SubscriptionPayment`; the admin's "এই মাসের আয়" adds up this calendar month's payments (Dhaka time), so trials and free extensions don't count.
 
 ## UI conventions
 

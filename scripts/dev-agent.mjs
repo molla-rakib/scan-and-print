@@ -12,12 +12,13 @@ import { fileURLToPath } from "node:url"
 
 const APP_URL = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "")
 const TOKEN_FILE = fileURLToPath(new URL("./.agent-token", import.meta.url))
-const VERSION = "0.0.0-dev"
+// Counts as the current agent, so jobs with page ranges, both sides or other paper sizes reach it.
+const VERSION = "1.1.0-dev"
 
 // Fake printers this "PC" reports.
 const PRINTERS = [
-  { systemName: "HP LaserJet Pro M404 (B&W)", color: false, duplex: true },
-  { systemName: "Epson L3250 (Color)", color: true, duplex: false },
+  { systemName: "HP LaserJet Pro M404 (B&W)", color: false, duplex: true, paperSizes: ["A4", "Legal"] },
+  { systemName: "Epson L3250 (Color)", color: true, duplex: false, paperSizes: ["A4", "Legal"] },
 ]
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -57,7 +58,14 @@ async function heartbeat(token) {
 }
 
 async function processJob(token, job) {
-  console.log(`\n▶ Job #${job.token}: ${job.fileName} → "${job.printer}" (${job.colorMode}, ${job.copies} copies, ${job.pageCount} pages)`)
+  const options = [
+    job.colorMode,
+    `${job.copies} copies`,
+    job.pages ? `pages ${job.pages}` : `all ${job.pageCount} pages`,
+    job.duplex ? "both sides" : "one side",
+    job.paperSize ?? "A4",
+  ]
+  console.log(`\n▶ Job #${job.token}: ${job.fileName} → "${job.printer}" (${options.join(", ")})`)
   const file = await fetch(job.fileUrl, { headers: { Authorization: `Bearer ${token}` } })
   if (!file.ok) {
     await api(`/api/agent/jobs/${job.id}`, token, { status: "failed", error: `Download failed (${file.status})` })

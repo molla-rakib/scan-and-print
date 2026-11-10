@@ -5,8 +5,8 @@ import { connection } from "next/server"
 import { Logo } from "@/components/logo"
 import { Skeleton } from "@/components/ui/skeleton"
 import { connectDb } from "@/lib/db"
-import { PrintJob, Shop } from "@/lib/models"
-import { publicJobView } from "@/lib/public-shop"
+import { Order, Shop } from "@/lib/models"
+import { publicOrderView } from "@/lib/public-shop"
 import { JobStatusView } from "./job-status"
 
 export const metadata: Metadata = { title: "অর্ডারের অবস্থা", robots: { index: false } }
@@ -32,9 +32,9 @@ async function Job({ params, searchParams }: Props) {
   const [{ publicId }, { payment }] = await Promise.all([params, searchParams])
   await connection()
   await connectDb()
-  const job = await PrintJob.findOne({ publicId })
-  const shop = job && (await Shop.findById(job.shopId))
-  if (!job || !shop || job.status === "draft") notFound()
+  const order = await Order.findOne({ publicId })
+  const shop = order && (await Shop.findById(order.shopId))
+  if (!order || !shop || order.status === "draft") notFound()
 
-  return <JobStatusView initial={await publicJobView(job, shop)} paymentResult={payment ?? null} />
+  return <JobStatusView initial={await publicOrderView(order, shop)} paymentResult={payment ?? null} />
 }

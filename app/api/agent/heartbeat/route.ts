@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { authenticateAgent, jsonError, parseBody } from "@/lib/api"
+import { PAPER_SIZES } from "@/lib/constants"
 import { rebalanceQueue } from "@/lib/jobs"
 import { Agent, Device } from "@/lib/models"
 
@@ -13,6 +14,12 @@ const schema = z.object({
         systemName: z.string().trim().min(1).max(200),
         color: z.boolean().default(false),
         duplex: z.boolean().default(false),
+        // Agents 1.1.0+: which of our paper sizes the driver supports. Unknown values are ignored.
+        paperSizes: z
+          .array(z.string())
+          .max(100)
+          .optional()
+          .transform((sizes) => sizes?.filter((s): s is (typeof PAPER_SIZES)[number] => PAPER_SIZES.includes(s as never))),
         state: z.string().trim().max(40).default("idle"),
       })
     )
@@ -38,7 +45,12 @@ export async function POST(request: Request) {
       {
         // The owner can rename a device or override its color capability; those are only set once.
         $setOnInsert: { shopId: agent.shopId, name: printer.systemName, color: printer.color, enabled: false },
-        $set: { duplex: printer.duplex, state: printer.state, present: true },
+        $set: {
+          duplex: printer.duplex,
+          state: printer.state,
+          present: true,
+          ...(printer.paperSizes ? { paperSizes: printer.paperSizes } : {}),
+        },
       },
       { upsert: true }
     )

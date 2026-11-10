@@ -3,7 +3,7 @@
 use windows::Win32::Graphics::Printing::{
     EnumPrintersW, PRINTER_ATTRIBUTE_WORK_OFFLINE, PRINTER_ENUM_CONNECTIONS, PRINTER_ENUM_LOCAL, PRINTER_INFO_2W,
 };
-use windows::Win32::Storage::Xps::{DC_COLORDEVICE, DC_DUPLEX, DeviceCapabilitiesW};
+use windows::Win32::Storage::Xps::{DC_COLORDEVICE, DC_DUPLEX, DC_PAPERS, DeviceCapabilitiesW};
 use windows::core::{PCWSTR, PWSTR};
 
 pub struct Printer {
@@ -12,6 +12,8 @@ pub struct Printer {
     pub driver: String,
     pub color: bool,
     pub duplex: bool,
+    /// Which of the paper sizes customers can order ("A4", "Legal", "A3") the driver supports.
+    pub paper_sizes: Vec<&'static str>,
     /// One of idle, printing, offline, paused, paper_out, paper_jam, no_toner, door_open, error.
     pub state: &'static str,
     /// Why the printer is not offered to the server (fax, "print to file" style printers), if it isn't.
@@ -77,7 +79,35 @@ unsafe fn describe(info: &PRINTER_INFO_2W) -> Printer {
     };
 
     let skip_reason = skip_reason(&name, &port, &driver);
-    Printer { color: capability(DC_COLORDEVICE) == 1, duplex: capability(DC_DUPLEX) == 1, name, port, driver, state, skip_reason }
+    Printer {
+        color: capability(DC_COLORDEVICE) == 1,
+        duplex: capability(DC_DUPLEX) == 1,
+        paper_sizes: unsafe { paper_sizes(info) },
+        name,
+        port,
+        driver,
+        state,
+        skip_reason,
+    }
+}
+
+/// DMPAPER_* ids (wingdi.h) of the sizes the server knows.
+const PAPER_IDS: [(u16, &str); 3] = [(9, "A4"), (5, "Legal"), (8, "A3")];
+
+unsafe fn paper_sizes(info: &PRINTER_INFO_2W) -> Vec<&'static str> {
+    let (device, port) = (PCWSTR(info.pPrinterName.0), PCWSTR(info.pPortName.0));
+    // First call returns how many papers there are, the second fills the list of ids.
+    let count = unsafe { DeviceCapabilitiesW(device, port, DC_PAPERS, None, None) };
+    if count <= 0 {
+        return Vec::new();
+    }
+    let mut ids = vec![0u16; count as usize];
+    let written = unsafe { DeviceCapabilitiesW(device, port, DC_PAPERS, Some(PWSTR(ids.as_mut_ptr())), None) };
+    if written <= 0 {
+        return Vec::new();
+    }
+    ids.truncate(written as usize);
+    PAPER_IDS.iter().filter(|(id, _)| ids.contains(id)).map(|(_, name)| *name).collect()
 }
 
 /// Printers that cannot print a customer job unattended.

@@ -12,8 +12,8 @@ import { requireAdmin } from "@/lib/auth"
 import { formatDate, formatNumber, formatTaka } from "@/lib/constants"
 import { connectDb } from "@/lib/db"
 import { env } from "@/lib/env"
-import { daysAgo, shopIsOpen, subscriptionExpired } from "@/lib/jobs"
-import { Device, PrintJob, Shop, User } from "@/lib/models"
+import { daysAgo, shopIsOpen, startOfMonthInDhaka, subscriptionExpired } from "@/lib/jobs"
+import { Device, PrintJob, Shop, SubscriptionPayment, User } from "@/lib/models"
 import { ShopActions } from "./shop-actions"
 
 export const metadata: Metadata = { title: "অ্যাডমিন" }
@@ -43,7 +43,7 @@ async function Shops() {
   await connectDb()
   const monthAgo = daysAgo(30)
 
-  const [shops, enabledDevices, monthlyJobs] = await Promise.all([
+  const [shops, enabledDevices, monthlyJobs, monthIncome] = await Promise.all([
     Shop.find().sort({ createdAt: -1 }),
     Device.aggregate<{ _id: Types.ObjectId; count: number }>([
       { $match: { enabled: true } },
@@ -52,6 +52,11 @@ async function Shops() {
     PrintJob.aggregate<{ _id: Types.ObjectId; count: number }>([
       { $match: { queuedAt: { $gte: monthAgo } } },
       { $group: { _id: "$shopId", count: { $sum: 1 } } },
+    ]),
+    // Only money actually received (recorded when extending a subscription), this calendar month.
+    SubscriptionPayment.aggregate<{ total: number }>([
+      { $match: { createdAt: { $gte: startOfMonthInDhaka() } } },
+      { $group: { _id: null, total: { $sum: "$amount" } } },
     ]),
   ])
   const owners = await User.find({ _id: { $in: shops.map((s) => s.ownerId) } }).select("email")
@@ -68,8 +73,8 @@ async function Shops() {
       tone: "violet" as const,
     },
     {
-      label: "মাসিক আয় (সক্রিয়)",
-      value: formatTaka(activeShops.reduce((sum, shop) => sum + shop.deviceLimit, 0) * env.deviceMonthlyFee),
+      label: "এই মাসের আয়",
+      value: formatTaka(monthIncome[0]?.total ?? 0),
       icon: TrendingUpIcon,
       tone: "amber" as const,
     },
@@ -128,6 +133,7 @@ async function Shops() {
                       <TableCell>
                         <ShopActions
                           shop={{ id: shop.id, name: shop.name, deviceLimit: shop.deviceLimit, suspended: shop.status === "suspended" }}
+                          monthlyFee={env.deviceMonthlyFee}
                         />
                       </TableCell>
                     </TableRow>

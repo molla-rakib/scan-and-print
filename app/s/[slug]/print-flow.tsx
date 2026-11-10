@@ -1,23 +1,22 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { FileTextIcon, MinusIcon, PlusIcon, TriangleAlertIcon, UploadIcon, XIcon } from "lucide-react"
+import { FilePlusIcon, TriangleAlertIcon, UploadIcon } from "lucide-react"
 import { toast } from "sonner"
 import { BkashButton } from "@/components/bkash"
 import { CashCheckout, type CashCustomer } from "@/components/cash-checkout"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Field, FieldContent, FieldDescription, FieldLabel, FieldTitle } from "@/components/ui/field"
-import { Progress } from "@/components/ui/progress"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Separator } from "@/components/ui/separator"
-import { Spinner } from "@/components/ui/spinner"
-import { MAX_COPIES, formatNumber, formatTaka, type ColorMode, type PaymentMethod } from "@/lib/constants"
+import { MAX_FILES_PER_ORDER, PAPER_SIZE_LABELS, formatNumber, formatTaka, type PaymentMethod } from "@/lib/constants"
 import type { PublicShopView } from "@/lib/public-shop"
 import { cn } from "@/lib/utils"
+import { FileCard, fileTotal, printedPages, type FileItem, type PrintOptions } from "./file-card"
+import { isImageFile } from "./preview"
 
-type Uploaded = { publicId: string; pageCount: number; fileName: string }
+const ACCEPT = "application/pdf,.pdf,image/jpeg,.jpg,.jpeg,image/png,.png"
+
+type Uploaded = { order: string; file: { id: string; pageCount: number } }
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   const response = await fetch(url, {
@@ -30,15 +29,16 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   return data as T
 }
 
-/** Uploads the PDF to the server, reporting progress. Resolves with the created draft job. */
-function uploadPdf(slug: string, file: File, onProgress: (percent: number) => void, onSent: () => void) {
-  return new Promise<{ publicId: string; pageCount: number }>((resolve, reject) => {
+/** Uploads one file into the draft order (created by the first upload), reporting progress. */
+function uploadFile(slug: string, file: File, order: string | null, onProgress: (percent: number) => void, onSent: () => void) {
+  return new Promise<Uploaded>((resolve, reject) => {
     const form = new FormData()
     form.append("slug", slug)
     form.append("file", file)
+    if (order) form.append("order", order)
 
     const xhr = new XMLHttpRequest()
-    xhr.open("POST", "/api/public/jobs")
+    xhr.open("POST", "/api/public/orders")
     xhr.responseType = "json"
     xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(Math.round((e.loaded / e.total) * 100))
     xhr.upload.onload = onSent
@@ -52,64 +52,140 @@ function uploadPdf(slug: string, file: File, onProgress: (percent: number) => vo
   })
 }
 
+const DEFAULT_OPTIONS: PrintOptions = { colorMode: "bw", copies: 1, duplex: false, paperSize: "A4", pages: [] }
+
 export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUploadMb: number }) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const [stage, setStage] = useState<"idle" | "uploading" | "analyzing">("idle")
-  const [progress, setProgress] = useState(0)
   const [dragging, setDragging] = useState(false)
-  const [uploaded, setUploaded] = useState<Uploaded | null>(null)
-  const [colorMode, setColorMode] = useState<ColorMode>("bw")
-  const [copies, setCopies] = useState(1)
+  const [items, setItems] = useState<FileItem[]>([])
   const [paying, setPaying] = useState<PaymentMethod | null>(null)
+  // Latest items for the upload loop, which runs across renders.
+  const itemsRef = useRef<FileItem[]>([])
+  const orderRef = useRef<string | null>(null)
+  const uploadingRef = useRef(false)
 
-  async function handleFile(file: File | undefined) {
-    if (!file) return
-    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
-      return void toast.error("শুধু PDF ফাইল আপলোড করা যাবে।")
-    }
-    if (file.size > maxUploadMb * 1024 * 1024) {
-      return void toast.error(`ফাইলটি অনেক বড়। সর্বোচ্চ ${formatNumber(maxUploadMb)} MB।`)
-    }
+  function update(fn: (items: FileItem[]) => FileItem[]) {
+    itemsRef.current = fn(itemsRef.current)
+    setItems(itemsRef.current)
+  }
+  const patch = (key: string, value: Partial<FileItem>) =>
+    update((list) => list.map((item) => (item.key === key ? { ...item, ...value } : item)))
 
+  /** Uploads waiting files one at a time, so they all join the same order. */
+  async function uploadQueue() {
+    if (uploadingRef.current) return
+    uploadingRef.current = true
     try {
-      setStage("uploading")
-      setProgress(0)
-      const job = await uploadPdf(shop.slug, file, setProgress, () => setStage("analyzing"))
-      setUploaded({ ...job, fileName: file.name })
-    } catch (error) {
-      toast.error((error as Error).message)
+      for (;;) {
+        const next = itemsRef.current.find((item) => item.state === "waiting")
+        if (!next) break
+        patch(next.key, { state: "uploading", progress: 0 })
+        try {
+          const result = await uploadFile(
+            shop.slug,
+            next.file,
+            orderRef.current,
+            (progress) => patch(next.key, { progress }),
+            () => patch(next.key, { state: "analyzing" })
+          )
+          orderRef.current = result.order
+          patch(next.key, { state: "ready", id: result.file.id, pageCount: result.file.pageCount })
+        } catch (error) {
+          patch(next.key, { state: "error", error: (error as Error).message })
+        }
+      }
     } finally {
-      setStage("idle")
-      if (inputRef.current) inputRef.current.value = ""
+      uploadingRef.current = false
     }
   }
 
-  async function checkout(method: PaymentMethod, customerInfo?: CashCustomer) {
-    if (!uploaded) return
+  function addFiles(list: FileList | null | undefined) {
+    const files = Array.from(list ?? [])
+    if (inputRef.current) inputRef.current.value = ""
+    if (!files.length) return
+    const room = MAX_FILES_PER_ORDER - itemsRef.current.length
+    if (files.length > room) toast.error(`একটি অর্ডারে সর্বোচ্চ ${formatNumber(MAX_FILES_PER_ORDER)}টি ফাইল দেওয়া যাবে।`)
+
+    const added: FileItem[] = []
+    for (const file of files.slice(0, Math.max(room, 0))) {
+      const supported = file.type === "application/pdf" || /\.pdf$/i.test(file.name) || isImageFile(file)
+      const tooBig = file.size > maxUploadMb * 1024 * 1024
+      added.push({
+        key: crypto.randomUUID(),
+        file,
+        state: supported && !tooBig ? "waiting" : "error",
+        error: !supported
+          ? "শুধু PDF, JPG বা PNG ফাইল দেওয়া যাবে।"
+          : tooBig
+            ? `ফাইলটি অনেক বড়। সর্বোচ্চ ${formatNumber(maxUploadMb)} MB।`
+            : undefined,
+        progress: 0,
+        options: DEFAULT_OPTIONS,
+      })
+    }
+    update((list) => [...list, ...added])
+    uploadQueue()
+  }
+
+  async function removeItem(item: FileItem) {
+    update((list) => list.filter((i) => i.key !== item.key))
+    if (item.id && orderRef.current) {
+      await fetch(`/api/public/orders/${orderRef.current}/files/${item.id}`, { method: "DELETE" }).catch(() => {})
+    }
+  }
+
+  const ready = items.filter((item) => item.state === "ready")
+  const busy = items.some((item) => ["waiting", "uploading", "analyzing"].includes(item.state))
+  const total = Math.round(ready.reduce((sum, item) => sum + fileTotal(shop, item), 0) * 100) / 100
+  const pages = ready.reduce((sum, item) => sum + printedPages(item) * item.options.copies, 0)
+  const canPay = ready.length > 0 && !busy && !paying
+
+  async function checkout(method: PaymentMethod, customer?: CashCustomer) {
+    if (!orderRef.current) return
     setPaying(method)
     try {
-      const { redirectUrl } = await postJson<{ redirectUrl: string }>(`/api/public/jobs/${uploaded.publicId}/checkout`, {
-        colorMode,
-        copies,
+      const { redirectUrl } = await postJson<{ redirectUrl: string }>(`/api/public/orders/${orderRef.current}/checkout`, {
+        files: ready.map((item) => ({ id: item.id, ...item.options })),
         method,
-        customer: customerInfo,
+        customer,
       })
-      window.location.href = redirectUrl
+      window.location.assign(redirectUrl)
     } catch (error) {
       toast.error((error as Error).message)
       setPaying(null)
     }
   }
 
-  if (!uploaded) {
-    const busy = stage !== "idle"
+  const fileInput = (
+    <input ref={inputRef} type="file" multiple accept={ACCEPT} className="hidden" onChange={(e) => addFiles(e.target.files)} />
+  )
+
+  const dropHandlers = {
+    onDragOver: (e: React.DragEvent) => {
+      e.preventDefault()
+      setDragging(true)
+    },
+    onDragLeave: () => setDragging(false),
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault()
+      setDragging(false)
+      addFiles(e.dataTransfer.files)
+    },
+  }
+
+  if (items.length === 0) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>আপনার PDF আপলোড করুন</CardTitle>
-          <CardDescription>
-            সাদা-কালো {formatTaka(shop.pricing.bw)}/পৃষ্ঠা
-            {shop.hasColor && <> · রঙিন {formatTaka(shop.pricing.color)}/পৃষ্ঠা</>}
+          <CardTitle>আপনার ফাইল আপলোড করুন</CardTitle>
+          <CardDescription className="flex flex-col">
+            {shop.papers.map((p) => (
+              <span key={p.size}>
+                {shop.papers.length > 1 && `${PAPER_SIZE_LABELS[p.size]}: `}
+                সাদা-কালো {formatTaka(p.bw)}/পৃষ্ঠা
+                {shop.hasColor && <> · রঙিন {formatTaka(p.color)}/পৃষ্ঠা</>}
+              </span>
+            ))}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -121,142 +197,79 @@ export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUplo
           )}
           <button
             type="button"
-            disabled={busy}
             onClick={() => inputRef.current?.click()}
-            onDragOver={(e) => {
-              e.preventDefault()
-              setDragging(true)
-            }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault()
-              setDragging(false)
-              handleFile(e.dataTransfer.files[0])
-            }}
+            {...dropHandlers}
             className={cn(
-              "flex flex-col items-center gap-3 rounded-xl border-2 border-dashed px-6 py-12 text-center transition-colors outline-none hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none",
+              "flex flex-col items-center gap-3 rounded-xl border-2 border-dashed px-6 py-12 text-center transition-colors outline-none hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/50",
               dragging && "border-primary bg-muted/60"
             )}
           >
-            {busy ? (
-              <>
-                <Spinner className="size-8" />
-                <span className="font-medium">{stage === "uploading" ? "আপলোড হচ্ছে…" : "ফাইল যাচাই করা হচ্ছে…"}</span>
-                {stage === "uploading" && <Progress value={progress} className="w-full max-w-56" />}
-              </>
-            ) : (
-              <>
-                <span className="flex size-12 items-center justify-center rounded-full bg-primary/5">
-                  <UploadIcon className="size-6" />
-                </span>
-                <span className="font-medium">PDF ফাইল বেছে নিন</span>
-                <span className="text-sm text-muted-foreground">সর্বোচ্চ {formatNumber(maxUploadMb)} MB</span>
-              </>
-            )}
+            <span className="flex size-12 items-center justify-center rounded-full bg-primary/5">
+              <UploadIcon className="size-6" />
+            </span>
+            <span className="font-medium">PDF বা ছবি বেছে নিন</span>
+            <span className="text-sm text-muted-foreground">
+              একসাথে একাধিক ফাইল দেওয়া যাবে · PDF, JPG, PNG · প্রতিটি সর্বোচ্চ {formatNumber(maxUploadMb)} MB
+            </span>
           </button>
-          <input
-            ref={inputRef}
-            type="file"
-            accept="application/pdf,.pdf"
-            className="hidden"
-            onChange={(e) => handleFile(e.target.files?.[0])}
-          />
+          {fileInput}
         </CardContent>
       </Card>
     )
   }
 
-  const pricePerPage = colorMode === "color" ? shop.pricing.color : shop.pricing.bw
-  const total = Math.round(pricePerPage * uploaded.pageCount * copies * 100) / 100
-  const modes: { value: ColorMode; title: string; price: number; disabled?: boolean }[] = [
-    { value: "bw", title: "সাদা-কালো", price: shop.pricing.bw },
-    { value: "color", title: "রঙিন", price: shop.pricing.color, disabled: !shop.hasColor },
-  ]
-
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-3 rounded-lg bg-muted p-3">
-          <FileTextIcon className="size-8 shrink-0 text-muted-foreground" />
-          <div className="min-w-0 flex-1">
-            <div className="truncate font-medium">{uploaded.fileName}</div>
-            <div className="text-sm text-muted-foreground">{formatNumber(uploaded.pageCount)} পৃষ্ঠা</div>
-          </div>
-          <Button variant="ghost" size="icon-sm" aria-label="অন্য ফাইল" onClick={() => setUploaded(null)} disabled={!!paying}>
-            <XIcon />
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-5">
-        <div className="flex flex-col gap-2">
-          <span className="text-sm font-medium">প্রিন্টের ধরন</span>
-          <RadioGroup value={colorMode} onValueChange={(value) => setColorMode(value as ColorMode)} className="grid-cols-2">
-            {modes.map((mode) => (
-              <FieldLabel key={mode.value} htmlFor={`mode-${mode.value}`}>
-                <Field orientation="horizontal" data-disabled={mode.disabled}>
-                  <FieldContent>
-                    <FieldTitle>{mode.title}</FieldTitle>
-                    <FieldDescription>
-                      {mode.disabled ? "পাওয়া যায় না" : `${formatTaka(mode.price)}/পৃষ্ঠা`}
-                    </FieldDescription>
-                  </FieldContent>
-                  <RadioGroupItem value={mode.value} id={`mode-${mode.value}`} disabled={mode.disabled} />
-                </Field>
-              </FieldLabel>
-            ))}
-          </RadioGroup>
-        </div>
+    <div className="flex flex-col gap-3" {...dropHandlers}>
+      {items.map((item) => (
+        <FileCard
+          key={item.key}
+          item={item}
+          shop={shop}
+          disabled={!!paying}
+          onChange={(options) => patch(item.key, { options })}
+          onRemove={() => removeItem(item)}
+        />
+      ))}
 
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium">কপি সংখ্যা</span>
-          <div className="flex items-center gap-3">
-            <Button variant="outline" size="icon" aria-label="কমান" disabled={copies <= 1} onClick={() => setCopies(copies - 1)}>
-              <MinusIcon />
-            </Button>
-            <span className="w-8 text-center text-lg font-semibold tabular-nums">{formatNumber(copies)}</span>
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label="বাড়ান"
-              disabled={copies >= MAX_COPIES}
-              onClick={() => setCopies(copies + 1)}
-            >
-              <PlusIcon />
-            </Button>
-          </div>
-        </div>
+      {items.length < MAX_FILES_PER_ORDER && (
+        <Button
+          variant="outline"
+          className={cn("h-12 border-dashed", dragging && "border-primary bg-muted/60")}
+          disabled={!!paying}
+          onClick={() => inputRef.current?.click()}
+        >
+          <FilePlusIcon /> আরও ফাইল যোগ করুন
+        </Button>
+      )}
+      {fileInput}
 
-        <Separator />
-
-        <div className="flex items-end justify-between">
+      <Card>
+        <CardContent className="flex items-end justify-between gap-3">
           <div className="text-sm text-muted-foreground">
-            {formatNumber(uploaded.pageCount)} পৃষ্ঠা × {formatNumber(copies)} কপি × {formatTaka(pricePerPage)}
+            {formatNumber(ready.length)}টি ফাইল · মোট {formatNumber(pages)} পৃষ্ঠা
+            {busy && <span className="block">ফাইল আপলোড শেষ হলে পেমেন্ট করা যাবে।</span>}
           </div>
           <div className="text-right">
             <div className="text-xs text-muted-foreground">মোট</div>
             <div className="text-2xl font-semibold tabular-nums">{formatTaka(total)}</div>
           </div>
-        </div>
-      </CardContent>
-      <CardFooter className="flex-col gap-2">
-        {shop.payments.bkash && (
-          <BkashButton
-            label="দিয়ে পেমেন্ট করুন"
-            pending={paying === "bkash"}
-            disabled={!!paying}
-            onClick={() => checkout("bkash")}
-          />
-        )}
-        {shop.payments.cash && (
-          <CashCheckout
-            amount={total}
-            outline={shop.payments.bkash}
-            pending={paying === "cash"}
-            disabled={!!paying}
-            onSubmit={(customer) => checkout("cash", customer)}
-          />
-        )}
-      </CardFooter>
-    </Card>
+        </CardContent>
+        <CardFooter className="flex-col gap-2">
+          {shop.payments.bkash && (
+            <BkashButton label="দিয়ে পেমেন্ট করুন" pending={paying === "bkash"} disabled={!canPay} onClick={() => checkout("bkash")} />
+          )}
+          {shop.payments.cash && (
+            <CashCheckout
+              fields={shop.cashFields}
+              amount={total}
+              outline={shop.payments.bkash}
+              pending={paying === "cash"}
+              disabled={!canPay}
+              onSubmit={(customer) => checkout("cash", customer)}
+            />
+          )}
+        </CardFooter>
+      </Card>
+    </div>
   )
 }

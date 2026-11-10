@@ -30,10 +30,46 @@ pub fn find_sumatra() -> Option<PathBuf> {
     candidates.into_iter().find(|path| path.is_file())
 }
 
+/// How to print a job, as ordered by the customer.
+pub struct PrintOptions<'a> {
+    pub color: bool,
+    pub copies: u32,
+    /// Page ranges such as "1-3,5"; None prints every page.
+    pub pages: Option<&'a str>,
+    pub duplex: bool,
+    /// "A4", "Legal" or "A3"; None means A4.
+    pub paper_size: Option<&'a str>,
+}
+
+/// The value of SumatraPDF's `-print-settings`, e.g. "monochrome,2x,1-3,5,duplexlong,paper=A4,shrink".
+fn print_settings(options: &PrintOptions) -> Result<String, String> {
+    let mut settings = vec![
+        if options.color { "color" } else { "monochrome" }.to_string(),
+        format!("{}x", options.copies.max(1)),
+    ];
+    if let Some(pages) = options.pages.filter(|p| !p.is_empty()) {
+        if !pages.chars().all(|c| c.is_ascii_digit() || c == ',' || c == '-') {
+            return Err("পৃষ্ঠার তালিকা বোঝা যায়নি".into());
+        }
+        settings.push(pages.to_string());
+    }
+    settings.push(if options.duplex { "duplexlong" } else { "simplex" }.to_string());
+    let paper = match options.paper_size.unwrap_or("A4") {
+        "A4" => "A4",
+        "Legal" => "legal",
+        "A3" => "A3",
+        other => return Err(format!("অজানা কাগজের মাপ ({other})")),
+    };
+    settings.push(format!("paper={paper}"));
+    // "shrink" only scales down pages larger than the paper, so normal A4 prints at 100%.
+    // On other paper sizes "fit" scales the page to fill the sheet.
+    settings.push(if paper == "A4" { "shrink" } else { "fit" }.to_string());
+    Ok(settings.join(","))
+}
+
 /// Prints `file` on `printer`. The error is shown to the shop owner, so it is in Bangla.
-pub fn print_pdf(sumatra: &Path, file: &Path, printer: &str, color: bool, copies: u32) -> Result<(), String> {
-    // "shrink" only scales down pages that are larger than the paper; normal A4 prints at 100%.
-    let settings = format!("{},{}x,shrink", if color { "color" } else { "monochrome" }, copies.max(1));
+pub fn print_pdf(sumatra: &Path, file: &Path, printer: &str, options: &PrintOptions) -> Result<(), String> {
+    let settings = print_settings(options)?;
     let mut child = Command::new(sumatra)
         .arg("-print-to")
         .arg(printer)

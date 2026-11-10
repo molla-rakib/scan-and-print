@@ -27,13 +27,19 @@ import { extendSubscription, setDeviceLimit, setShopStatus } from "./actions"
 
 type Shop = { id: string; name: string; deviceLimit: number; suspended: boolean }
 
-export function ShopActions({ shop }: { shop: Shop }) {
+/** What `days` of service cost: devices × monthly fee, pro-rated by 30-day months. */
+const suggestedAmount = (days: number, deviceLimit: number, monthlyFee: number) =>
+  Math.round((deviceLimit * monthlyFee * days) / 30)
+
+export function ShopActions({ shop, monthlyFee }: { shop: Shop; monthlyFee: number }) {
   const { pending, run } = useAction()
   const [dialog, setDialog] = useState<"limit" | "extend" | null>(null)
   const [value, setValue] = useState("")
+  const [amount, setAmount] = useState("")
 
   function open(kind: "limit" | "extend") {
     setValue(kind === "limit" ? String(shop.deviceLimit) : "30")
+    setAmount(String(suggestedAmount(30, shop.deviceLimit, monthlyFee)))
     setDialog(kind)
   }
 
@@ -41,7 +47,9 @@ export function ShopActions({ shop }: { shop: Shop }) {
     const number = Number(value)
     const close = { onSuccess: () => setDialog(null) }
     if (dialog === "limit") run(() => setDeviceLimit(shop.id, number), { success: "ডিভাইস লিমিট আপডেট হয়েছে", ...close })
-    if (dialog === "extend") run(() => extendSubscription(shop.id, number), { success: "মেয়াদ বাড়ানো হয়েছে", ...close })
+    if (dialog === "extend") {
+      run(() => extendSubscription(shop.id, number, Number(amount || 0)), { success: "পেমেন্ট রেকর্ড ও মেয়াদ বাড়ানো হয়েছে", ...close })
+    }
   }
 
   return (
@@ -94,10 +102,27 @@ export function ShopActions({ shop }: { shop: Shop }) {
                 min={dialog === "limit" ? 0 : 1}
                 required
                 value={value}
-                onChange={(e) => setValue(e.target.value)}
+                onChange={(e) => {
+                  setValue(e.target.value)
+                  if (dialog === "extend") setAmount(String(suggestedAmount(Number(e.target.value) || 0, shop.deviceLimit, monthlyFee)))
+                }}
               />
-              {dialog === "extend" && <FieldDescription>পেমেন্ট পাওয়ার পর মেয়াদ বাড়ান। বর্তমান মেয়াদের শেষ থেকে যোগ হবে।</FieldDescription>}
+              {dialog === "extend" && <FieldDescription>বর্তমান মেয়াদের শেষ থেকে যোগ হবে।</FieldDescription>}
             </Field>
+            {dialog === "extend" && (
+              <Field>
+                <FieldLabel htmlFor={`amount-${shop.id}`}>পাওয়া টাকা</FieldLabel>
+                <Input
+                  id={`amount-${shop.id}`}
+                  type="number"
+                  min={0}
+                  required
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                />
+                <FieldDescription>বিনা মূল্যে বাড়ালে ০ দিন — আয়ে যোগ হবে না।</FieldDescription>
+              </Field>
+            )}
             <DialogFooter>
               <DialogClose render={<Button variant="outline" />}>বাতিল</DialogClose>
               <Button type="submit" disabled={pending}>

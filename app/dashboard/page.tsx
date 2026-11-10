@@ -66,16 +66,18 @@ async function Overview() {
   const today = startOfTodayInDhaka()
 
   const [todayStats, latestCash, online, enabledCount, pairedPcs, recentJobs] = await Promise.all([
+    // One order can hold several files (jobs); count orders, add up the files' amounts.
     PrintJob.aggregate<{ count: number; revenue: number; cash: number }>([
       { $match: { shopId: shop._id, queuedAt: { $gte: today }, status: { $nin: ["cancelled", "draft"] } } },
       {
         $group: {
           _id: null,
-          count: { $sum: 1 },
+          orders: { $addToSet: "$orderId" },
           revenue: { $sum: "$amount" },
           cash: { $sum: { $cond: [{ $eq: ["$paymentMethod", "cash"] }, "$amount", 0] } },
         },
       },
+      { $project: { count: { $size: "$orders" }, revenue: 1, cash: 1 } },
     ]),
     latestCashOrder(shop._id),
     availableDevices(shop._id),
@@ -88,7 +90,7 @@ async function Overview() {
   const checklist = [
     { done: pairedPcs > 0, label: "দোকানের কম্পিউটারে প্রিন্ট এজেন্ট ইনস্টল করে যুক্ত করুন", href: "/dashboard/devices" },
     { done: enabledCount > 0, label: "অন্তত একটি প্রিন্টার চালু করুন", href: "/dashboard/devices" },
-    { done: payments.bkash || payments.cash, label: "পেমেন্ট পদ্ধতি ঠিক করুন (বিকাশ বা ক্যাশ)", href: "/dashboard/settings" },
+    { done: payments.bkash || payments.cash, label: "পেমেন্ট পদ্ধতি ঠিক করুন (বিকাশ বা ক্যাশ)", href: "/dashboard/settings/payment" },
     { done: false, label: "QR কোড প্রিন্ট করে কাউন্টারে লাগান", href: "/dashboard/qr" },
   ]
   const setupComplete = checklist.slice(0, 3).every((item) => item.done)
