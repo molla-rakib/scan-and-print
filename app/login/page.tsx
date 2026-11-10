@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import Link from "next/link"
 import { Suspense } from "react"
 import { redirect } from "next/navigation"
 import { CircleAlertIcon } from "lucide-react"
@@ -26,9 +25,7 @@ export default function LoginPage({ searchParams }: Props) {
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_0%,color-mix(in_oklch,var(--primary)_8%,transparent),transparent)]"
       />
-      <Link href="/" className="relative">
-        <Logo />
-      </Link>
+      <Logo linkClassName="relative" />
       <Card className="relative w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-xl">দোকান মালিক লগইন</CardTitle>
