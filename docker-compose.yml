@@ -1,4 +1,4 @@
-# Local MongoDB (single-node replica set, needed for transactions). PDFs are stored in it via GridFS.
+# Local MongoDB (single-node replica set). Production runs a standalone MongoDB (no transactions are used). PDFs are stored in it via GridFS.
 # Start with: docker compose up -d
 name: mudron
 

@@ -1,0 +1,27 @@
+# VPS-only override for eshopbd.site (/var/www/eshopbd-site), kept outside its repo at
+# /var/www/infra/eshopbd.override.yml and picked up through COMPOSE_FILE in eshopbd's .env:
+#   COMPOSE_FILE=docker-compose.yml:/var/www/infra/eshopbd.override.yml
+#
+# eshopbd then uses the shared MongoDB and Caddy from /var/www/infra instead of its own:
+# its `mongo` and `caddy` services are switched off, and the app and MinIO join the `infra`
+# network under unique names (two services called "app" on one network would share DNS).
+services:
+  mongo:
+    profiles: !override ["disabled"]
+  caddy:
+    profiles: !override ["disabled"]
+  app:
+    depends_on: !override [minio, redis]
+    networks:
+      default:
+      infra:
+        aliases: [eshopbd-app]
+  minio:
+    networks:
+      default:
+      infra:
+        aliases: [eshopbd-minio]
+
+networks:
+  infra:
+    external: true

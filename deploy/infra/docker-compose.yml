@@ -1,0 +1,48 @@
+# Shared services on the VPS, used by every site on it (mudron.org, eshopbd.site).
+# Lives at /var/www/infra on the server; this is the reference copy. See deploy/README.md.
+#
+#   cd /var/www/infra && docker compose up -d
+#
+# Apps join the external `infra` network and reach MongoDB at mongo:27017 with their own user.
+# Caddy owns ports 80/443 and proxies each domain to its app (see Caddyfile).
+name: infra
+
+services:
+  mongo:
+    image: mongo:8.0
+    restart: unless-stopped
+    # Cap the cache (default is half the RAM) so the apps keep room on a small VPS.
+    command: --wiredTigerCacheSizeGB 1
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?set in .env}
+    # No published port: only containers on the `infra` network reach it. For a shell or a dump use
+    # `docker compose exec mongo mongosh -u root -p` / `mongodump`.
+    volumes: [mongo-data:/data/db]
+    networks: [infra]
+    healthcheck:
+      test: mongosh --quiet --eval "db.adminCommand('ping').ok"
+      interval: 10s
+      start_period: 20s
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [infra]
+
+networks:
+  infra:
+    name: infra
+
+volumes:
+  mongo-data:
+  # Certificates; taken over from eshopbd's old Caddy so nothing has to be re-issued.
+  caddy-data:
+    external: true
+    name: eshopbd_caddy-data
+  caddy-config:

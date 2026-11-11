@@ -1,0 +1,41 @@
+# One Caddy for every site on the VPS. Certificates are issued and renewed automatically.
+# After editing: docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
+
+# ─── মুদ্রণ (Mudron) ─────────────────────────────────────────────────────────
+mudron.org {
+	encode zstd gzip
+	# Customers upload PDFs (MAX_UPLOAD_MB) and big files arrive in 3.5 MB pieces.
+	request_body {
+		max_size 60MB
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+	reverse_proxy mudron:3000
+}
+
+www.mudron.org {
+	redir https://mudron.org{uri} permanent
+}
+
+# ─── eshopbd.site (from /var/www/eshopbd-site) ───────────────────────────────
+eshopbd.site {
+	encode zstd gzip
+	reverse_proxy eshopbd-app:3000
+}
+
+www.eshopbd.site {
+	redir https://eshopbd.site{uri} permanent
+}
+
+# Product images: browsers upload here directly and load every <img> from here.
+media.eshopbd.site {
+	request_body {
+		max_size 5MB
+	}
+	header X-Content-Type-Options nosniff
+	reverse_proxy eshopbd-minio:9000
+}

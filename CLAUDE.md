@@ -111,6 +111,10 @@ The real Windows agent is a Rust tray app in `agent/` (see `agent/README.md`; ta
 - **bKash branding.** `components/bkash.tsx` uses `public/images/bkash.png` (full color, so it needs a light background).
 - **Responsive.** Every page must work at phone width. Tables hide secondary columns with `hidden md:table-cell` and repeat that info under the primary cell on small screens.
 
+## Production
+
+`https://mudron.org` runs on a VPS in Docker (`Dockerfile`, Next standalone output, `deploy/docker-compose.yml`), behind a Caddy and a MongoDB 8 shared with another site (`deploy/infra`). How to deploy, back up and read logs: `deploy/README.md`. Vercel and MongoDB Atlas were the old production; they are no longer used once agents are on 1.3.0.
+
 ## Environment
 
 Copy `.env.example` to `.env`.
