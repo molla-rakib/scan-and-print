@@ -8,7 +8,7 @@ import { CashCheckout, type CashCustomer } from "@/components/cash-checkout"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { MAX_FILES_PER_ORDER, PAPER_SIZE_LABELS, UPLOAD_CHUNK_BYTES, formatNumber, formatTaka, type PaymentMethod } from "@/lib/constants"
+import { MAX_FILES_PER_ORDER, PAPER_SIZE_LABELS, QUEUE_EXPIRY_HOURS, UPLOAD_CHUNK_BYTES, formatNumber, formatTaka, type PaymentMethod } from "@/lib/constants"
 import type { PublicShopView } from "@/lib/public-shop"
 import { cn } from "@/lib/utils"
 import { FileCard, effectiveOptions, fileTotal, printedPages, type FileItem, type PrintOptions } from "./file-card"
@@ -276,7 +276,7 @@ export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUplo
           {!shop.online && (
             <Alert>
               <TriangleAlertIcon />
-              <AlertDescription>দোকানের প্রিন্টার এই মুহূর্তে অফলাইন। অর্ডার দিলে প্রিন্টার চালু হওয়ার পর প্রিন্ট হবে।</AlertDescription>
+              <AlertDescription>দোকানের প্রিন্টার এই মুহূর্তে বন্ধ। অর্ডার দিলে প্রিন্টার চালু হওয়ার পর প্রিন্ট হবে। {formatNumber(QUEUE_EXPIRY_HOURS)} ঘণ্টার মধ্যে প্রিন্ট না হলে অর্ডারটি নিজে থেকে বাতিল হয়ে যাবে।</AlertDescription>
             </Alert>
           )}
           <button

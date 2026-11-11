@@ -1,7 +1,7 @@
 import "server-only"
 import { formatPageSelection, printerDuplexes, printerHasPaper, type ColorMode, type JobStatus, type PaperSize } from "@/lib/constants"
 import { connectDb } from "@/lib/db"
-import { availableDevices, cashFields, colorDuplexAllowed, orderStatus, paperOptions, paymentOptions, queuePosition, shopIsOpen } from "@/lib/jobs"
+import { availableDevices, cashFields, colorDuplexAllowed, expireStaleJobs, orderStatus, paperOptions, paymentOptions, queuePosition, shopIsOpen } from "@/lib/jobs"
 import { Device, PrintJob, Shop, type OrderDoc, type ShopDoc } from "@/lib/models"
 
 export async function findShopBySlug(slug: string) {
@@ -41,6 +41,7 @@ export async function publicShopView(shop: ShopDoc) {
 export type PublicShopView = Awaited<ReturnType<typeof publicShopView>>
 
 export async function publicOrderView(order: OrderDoc, shop: ShopDoc) {
+  await expireStaleJobs({ orderId: order._id })
   const jobs = await PrintJob.find({ orderId: order._id }).sort({ createdAt: 1 })
   const devices = await Device.find({ _id: { $in: jobs.map((j) => j.deviceId).filter(Boolean) } }).select("name")
   const deviceName = (id: unknown) => devices.find((d) => d._id.equals(id as string))?.name ?? null
@@ -73,6 +74,8 @@ export async function publicOrderView(order: OrderDoc, shop: ShopDoc) {
     paymentMethod: order.paymentMethod ?? null,
     trxId: order.bkash?.trxId ?? null,
     queuePosition: positions.length ? Math.min(...positions) : null,
+    // Some file was cancelled because the shop didn't print it in time.
+    expired: jobs.some((job) => job.cancelReason === "expired"),
     files,
     shop: { name: shop.name, slug: shop.slug, payments: paymentOptions(shop), cashFields: cashFields(shop) },
     updatedAt: order.updatedAt.toISOString(),

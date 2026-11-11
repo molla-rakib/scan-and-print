@@ -1,8 +1,7 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import type { Types } from "mongoose"
-import { CheckCircle2Icon, MonitorIcon, ShieldIcon, StoreIcon, TrendingUpIcon } from "lucide-react"
-import { PageHeader } from "@/components/page-header"
+import { CheckCircle2Icon, MonitorIcon, StoreIcon, TrendingUpIcon } from "lucide-react"
 import { StatCard } from "@/components/stat-card"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -11,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { requireAdmin } from "@/lib/auth"
 import { formatDate, formatNumber, formatTaka } from "@/lib/constants"
 import { connectDb } from "@/lib/db"
-import { env } from "@/lib/env"
+import { activeDiscount, baseMonthlyFee, monthlyFee } from "@/lib/billing"
 import { daysAgo, shopIsOpen, startOfMonthInDhaka, subscriptionExpired } from "@/lib/jobs"
 import { Device, PrintJob, Shop, SubscriptionPayment, User } from "@/lib/models"
 import { ShopActions } from "./shop-actions"
@@ -20,17 +19,9 @@ export const metadata: Metadata = { title: "অ্যাডমিন" }
 
 export default function AdminPage() {
   return (
-    <>
-      <PageHeader
-        title="সব দোকান"
-        description="সাবস্ক্রিপশন, ডিভাইস লিমিট এবং দোকানের অবস্থা পরিচালনা করুন।"
-        icon={ShieldIcon}
-        tone="rose"
-      />
-      <Suspense fallback={<Skeleton className="h-96" />}>
-        <Shops />
-      </Suspense>
-    </>
+    <Suspense fallback={<Skeleton className="h-96" />}>
+      <Shops />
+    </Suspense>
   )
 }
 
@@ -53,9 +44,15 @@ async function Shops() {
       { $match: { queuedAt: { $gte: monthAgo } } },
       { $group: { _id: "$shopId", count: { $sum: 1 } } },
     ]),
-    // Only money actually received (recorded when extending a subscription), this calendar month.
+    // Only money actually received this calendar month.
+    // Records from before online payments have no status and count as paid; paidAt falls back to createdAt.
     SubscriptionPayment.aggregate<{ total: number }>([
-      { $match: { createdAt: { $gte: startOfMonthInDhaka() } } },
+      {
+        $match: {
+          status: { $nin: ["pending", "failed", "cancelled", "rejected"] },
+          $expr: { $gte: [{ $ifNull: ["$paidAt", "$createdAt"] }, startOfMonthInDhaka()] },
+        },
+      },
       { $group: { _id: null, total: { $sum: "$amount" } } },
     ]),
   ])
@@ -99,6 +96,7 @@ async function Shops() {
                   <TableHead>দোকান</TableHead>
                   <TableHead>মালিক</TableHead>
                   <TableHead>ডিভাইস</TableHead>
+                  <TableHead>মাসিক ফি</TableHead>
                   <TableHead>৩০ দিনের অর্ডার</TableHead>
                   <TableHead>মেয়াদ</TableHead>
                   <TableHead>অবস্থা</TableHead>
@@ -118,6 +116,24 @@ async function Shops() {
                       <TableCell className="tabular-nums">
                         {formatNumber(countBy(enabledDevices, shop._id))} / {formatNumber(shop.deviceLimit)}
                       </TableCell>
+                      <TableCell className="tabular-nums">
+                        {(() => {
+                          const discount = activeDiscount(shop)
+                          if (!discount) return formatTaka(baseMonthlyFee(shop))
+                          return (
+                            <div className="flex flex-col">
+                              <span>
+                                <span className="font-medium">{formatTaka(monthlyFee(shop))}</span>{" "}
+                                <span className="text-xs text-muted-foreground line-through">{formatTaka(baseMonthlyFee(shop))}</span>
+                              </span>
+                              <span className="text-xs text-emerald-700 dark:text-emerald-400">
+                                {discount.kind === "percent" ? `${formatNumber(discount.value)}% ছাড়` : "নির্দিষ্ট ফি"}
+                                {discount.until && ` · ${formatDate(discount.until)} পর্যন্ত`}
+                              </span>
+                            </div>
+                          )
+                        })()}
+                      </TableCell>
                       <TableCell className="tabular-nums">{formatNumber(countBy(monthlyJobs, shop._id))}</TableCell>
                       <TableCell className={expired ? "text-destructive" : undefined}>{formatDate(shop.paidUntil)}</TableCell>
                       <TableCell>
@@ -131,8 +147,23 @@ async function Shops() {
                       </TableCell>
                       <TableCell>
                         <ShopActions
-                          shop={{ id: shop.id, name: shop.name, deviceLimit: shop.deviceLimit, suspended: shop.status === "suspended" }}
-                          monthlyFee={env.deviceMonthlyFee}
+                          shop={{
+                            id: shop.id,
+                            name: shop.name,
+                            deviceLimit: shop.deviceLimit,
+                            suspended: shop.status === "suspended",
+                            baseFee: baseMonthlyFee(shop),
+                            monthlyFee: monthlyFee(shop),
+                            discount: shop.discount?.kind
+                              ? {
+                                  kind: shop.discount.kind as "percent" | "fixed",
+                                  value: shop.discount.value,
+                                  // The date input wants YYYY-MM-DD in Dhaka time.
+                                  until: shop.discount.until ? new Date(shop.discount.until.getTime() + 6 * 3600_000).toISOString().slice(0, 10) : "",
+                                  note: shop.discount.note ?? "",
+                                }
+                              : null,
+                          }}
                         />
                       </TableCell>
                     </TableRow>

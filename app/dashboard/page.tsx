@@ -12,6 +12,7 @@ import {
   RocketIcon,
   TrendingUpIcon,
   TriangleAlertIcon,
+  CalendarClockIcon,
 } from "lucide-react"
 import { IconTile } from "@/components/icon-tile"
 import { JobStatusBadge } from "@/components/job-status-badge"
@@ -34,8 +35,9 @@ import {
   type ColorMode,
   type JobStatus,
 } from "@/lib/constants"
+import { monthlyFee } from "@/lib/billing"
 import { env } from "@/lib/env"
-import { availableDevices, latestCashOrder, paymentOptions, shopIsOpen } from "@/lib/jobs"
+import { availableDevices, expireStaleJobs, expiresSoon, latestCashOrder, paymentOptions, shopIsOpen } from "@/lib/jobs"
 import { Agent, Device, PrintJob } from "@/lib/models"
 
 export const metadata: Metadata = { title: "সারসংক্ষেপ" }
@@ -63,6 +65,7 @@ function startOfTodayInDhaka() {
 
 async function Overview() {
   const { shop } = await requireShop()
+  await expireStaleJobs({ shopId: shop._id })
   const today = startOfTodayInDhaka()
 
   const [todayStats, latestCash, online, enabledCount, pairedPcs, recentJobs] = await Promise.all([
@@ -107,7 +110,30 @@ async function Overview() {
           <AlertDescription>
             {shop.status === "suspended"
               ? "আপনার অ্যাকাউন্ট সাময়িকভাবে বন্ধ রাখা হয়েছে। অনুগ্রহ করে আমাদের সাথে যোগাযোগ করুন।"
-              : "আপনার সাবস্ক্রিপশনের মেয়াদ শেষ হয়ে গেছে। চালু রাখতে নবায়ন করুন।"}
+              : (
+                <>
+                  আপনার সাবস্ক্রিপশনের মেয়াদ শেষ হয়ে গেছে।{" "}
+                  <Link href="/dashboard/billing" className="font-medium underline underline-offset-4">
+                    এখনই মেয়াদ বাড়ান
+                  </Link>
+                </>
+              )}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {shopIsOpen(shop) && expiresSoon(shop) && (
+        <Alert>
+          <CalendarClockIcon />
+          <AlertTitle>সাবস্ক্রিপশনের মেয়াদ {formatDate(shop.paidUntil)} শেষ হবে</AlertTitle>
+          <AlertDescription>
+            <span>
+              দোকান চালু রাখতে{" "}
+              <Link href="/dashboard/billing" className="font-medium underline underline-offset-4">
+                মেয়াদ বাড়ান
+              </Link>
+              ।
+            </span>
           </AlertDescription>
         </Alert>
       )}
@@ -235,12 +261,20 @@ async function Overview() {
               </div>
               <div className="flex justify-between gap-4">
                 <span className="text-muted-foreground">মাসিক ফি</span>
-                <span className="font-medium tabular-nums">{formatTaka(shop.deviceLimit * env.deviceMonthlyFee)}</span>
+                <span className="font-medium tabular-nums">{formatTaka(monthlyFee(shop))}</span>
               </div>
               <div className="flex justify-between gap-4">
                 <span className="text-muted-foreground">মেয়াদ শেষ</span>
                 <span className="font-medium">{formatDate(shop.paidUntil)}</span>
               </div>
+              <Button
+                className="mt-2"
+                variant={expiresSoon(shop) ? "default" : "outline"}
+                nativeButton={false}
+                render={<Link href="/dashboard/billing" />}
+              >
+                মেয়াদ বাড়ান
+              </Button>
             </CardContent>
           </Card>
         </div>

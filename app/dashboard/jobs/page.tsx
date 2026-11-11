@@ -26,7 +26,7 @@ import {
   type PaymentMethod,
 } from "@/lib/constants"
 import { env } from "@/lib/env"
-import { latestCashOrder, orderStatus } from "@/lib/jobs"
+import { expireStaleJobs, latestCashOrder, orderStatus } from "@/lib/jobs"
 import { Device, Order, PrintJob } from "@/lib/models"
 import { FileActionsMenu } from "./job-actions"
 import { DeleteHistoryButton } from "./delete-history-button"
@@ -54,6 +54,7 @@ export default function JobsPage() {
 
 async function Jobs() {
   const { shop } = await requireShop()
+  await expireStaleJobs({ shopId: shop._id })
   const [latestCash, orders, devices] = await Promise.all([
     latestCashOrder(shop._id),
     Order.find({ shopId: shop._id, status: { $ne: "draft" } })

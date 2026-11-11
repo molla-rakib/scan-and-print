@@ -5,6 +5,9 @@ import {
   AGENT_ONLINE_WINDOW_MS,
   EXTRA_PAPER_SIZES,
   MIN_AGENT_VERSION_FOR_OPTIONS,
+  QUEUE_EXPIRY_HOURS,
+  QUEUE_EXPIRY_MS,
+  formatNumber,
   printerDuplexes,
   printerHasPaper,
   versionAtLeast,
@@ -33,6 +36,11 @@ export function startOfMonthInDhaka() {
 
 export function subscriptionExpired(shop: ShopDoc) {
   return shop.paidUntil.getTime() <= Date.now()
+}
+
+/** Whether the subscription ends within 5 days (or already ended), so the owner should renew. */
+export function expiresSoon(shop: ShopDoc) {
+  return shop.paidUntil.getTime() - Date.now() < 5 * 24 * 60 * 60 * 1000
 }
 
 /** Whether customers can place orders at this shop right now. */
@@ -189,6 +197,44 @@ export async function discardJobFile(job: PrintJobDoc) {
   if (job.fileDeleted) return
   await deleteFile(job.fileKey).catch((error) => console.error("Failed to delete file", job.fileKey, error))
   await PrintJob.updateOne({ _id: job._id }, { $set: { fileDeleted: true } })
+}
+
+/** Cancels files that waited longer than QUEUE_EXPIRY_HOURS without printing and deletes their PDFs. */
+export async function expireStaleJobs(scope: { shopId?: Id; orderId?: Id } = {}) {
+  const cutoff = new Date(Date.now() - QUEUE_EXPIRY_MS)
+  const stale = await PrintJob.find({
+    ...scope,
+    $or: [
+      { status: "queued", queuedAt: { $lt: cutoff } },
+      // Old cash jobs from before approval was removed never got a queuedAt.
+      { status: "awaiting_approval", createdAt: { $lt: cutoff } },
+    ],
+  })
+  for (const job of stale) {
+    const updated = await PrintJob.findOneAndUpdate(
+      { _id: job._id, status: job.status },
+      {
+        $set: {
+          status: "cancelled",
+          cancelReason: "expired",
+          error: `${formatNumber(QUEUE_EXPIRY_HOURS)} ঘণ্টার মধ্যে প্রিন্ট হয়নি, তাই বাতিল হয়েছে`,
+        },
+        $unset: { deviceId: 1, agentId: 1 },
+      },
+      { returnDocument: "after" }
+    )
+    if (updated) await discardJobFile(updated)
+  }
+}
+
+let lastExpiry = 0
+
+/** expireStaleJobs() for every shop, at most every 10 minutes (called from frequent requests). */
+export async function expireStaleJobsThrottled() {
+  const now = Date.now()
+  if (now - lastExpiry < 10 * 60 * 1000) return
+  lastExpiry = now
+  await expireStaleJobs()
 }
 
 /** The newest cash order, so dashboard pages can chime when another one comes in. */

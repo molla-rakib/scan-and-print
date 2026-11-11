@@ -1,6 +1,6 @@
 import "server-only"
 import mongoose, { Schema, type HydratedDocument, type InferSchemaType, type Model } from "mongoose"
-import { JOB_STATUSES, PAPER_SIZES } from "@/lib/constants"
+import { JOB_STATUSES, PAPER_SIZES, SUBSCRIPTION_METHODS, SUBSCRIPTION_STATUSES } from "@/lib/constants"
 
 const { ObjectId } = Schema.Types
 
@@ -83,6 +83,18 @@ const cashSchema = new Schema(
   { _id: false }
 )
 
+// A subscription discount the admin gives a shop: a percentage off, or a fixed monthly fee for the whole shop.
+// Without `until` it never ends.
+const discountSchema = new Schema(
+  {
+    kind: { type: String, enum: ["percent", "fixed"], required: true },
+    value: { type: Number, required: true, min: 0 },
+    until: { type: Date },
+    note: { type: String, default: "" },
+  },
+  { _id: false }
+)
+
 const shopSchema = new Schema(
   {
     ownerId: { type: ObjectId, ref: "User", required: true, index: true },
@@ -98,6 +110,7 @@ const shopSchema = new Schema(
     // Cash jobs print right away; the customer's name and/or phone tell the shop who owes the money.
     cash: { type: cashSchema, default: () => ({}), required: true },
     status: { type: String, enum: ["active", "suspended"], default: "active" },
+    discount: { type: discountSchema },
     // Billing: the shop pays per enabled device.
     deviceLimit: { type: Number, default: 1 },
     paidUntil: { type: Date, required: true },
@@ -221,6 +234,8 @@ const printJobSchema = new Schema(
     deviceId: { type: ObjectId, ref: "Device" },
     agentId: { type: ObjectId, ref: "Agent" },
     error: { type: String },
+    // Why a job was cancelled when the shop didn't do it: "expired" = not printed within QUEUE_EXPIRY_HOURS.
+    cancelReason: { type: String, enum: ["expired"] },
     queuedAt: { type: Date },
     startedAt: { type: Date },
     completedAt: { type: Date },
@@ -239,20 +254,95 @@ export type PrintJobDoc = HydratedDocument<InferSchemaType<typeof printJobSchema
 
 // Money a shop paid us, recorded by the admin when extending the subscription. The admin's
 // monthly income adds these up.
+// One payment from a shop to us. Every method goes pending → paid / failed / cancelled / rejected, and only
+// "paid" extends the shop's paidUntil. Records made before online payments have no status: they are paid.
 const subscriptionPaymentSchema = new Schema(
   {
     shopId: { type: ObjectId, ref: "Shop", required: true, index: true },
+    method: { type: String, enum: SUBSCRIPTION_METHODS, default: "admin" },
+    status: { type: String, enum: SUBSCRIPTION_STATUSES, default: "paid" },
     amount: { type: Number, required: true },
     days: { type: Number, required: true },
-    // The shop's new end date after this payment.
-    paidUntil: { type: Date, required: true },
+    // The shop's new end date after this payment (set when paid).
+    paidUntil: { type: Date },
+    paidAt: { type: Date },
+    // Admin email for admin extensions and manual approvals/rejections; owner email for owner payments.
     recordedBy: { type: String, default: "" },
+    submittedBy: { type: String, default: "" },
+    // Manual payments: the transaction ID and number the owner sent money from. Gateways: their transaction ID.
+    trxId: { type: String },
+    senderNumber: { type: String },
+    // Gateway reference: bKash paymentID or EPS merchantTransactionId.
+    gatewayRef: { type: String, index: true },
+    // Why a manual payment was rejected, or the gateway's failure message.
+    note: { type: String },
   },
   { timestamps: true }
 )
 subscriptionPaymentSchema.index({ createdAt: -1 })
+subscriptionPaymentSchema.index({ status: 1, method: 1 })
 
 export const SubscriptionPayment = defineModel("SubscriptionPayment", subscriptionPaymentSchema)
+
+/* ----------------------------- Billing settings ----------------------------- */
+
+// How shops pay us, set by the admin in Admin → পেমেন্ট সেটআপ. A single document (key "billing").
+// Secrets are AES-256-GCM encrypted with ENCRYPTION_KEY, like shops' bKash credentials.
+const billingSettingsSchema = new Schema(
+  {
+    key: { type: String, required: true, unique: true, default: "billing" },
+    manual: {
+      type: new Schema(
+        {
+          enabled: { type: Boolean, default: false },
+          // Our numbers that owners send money to; a method shows only when its number is set.
+          bkashNumber: { type: String, default: "" },
+          nagadNumber: { type: String, default: "" },
+          // Shown to owners above the form, e.g. "Send Money করুন, Payment নয়".
+          instructions: { type: String, default: "" },
+        },
+        { _id: false }
+      ),
+      default: () => ({}),
+      required: true,
+    },
+    bkash: {
+      type: new Schema(
+        {
+          enabled: { type: Boolean, default: false },
+          sandbox: { type: Boolean, default: true },
+          username: { type: String, default: "" },
+          appKey: { type: String, default: "" },
+          passwordEnc: { type: String, default: "" },
+          appSecretEnc: { type: String, default: "" },
+        },
+        { _id: false }
+      ),
+      default: () => ({}),
+      required: true,
+    },
+    eps: {
+      type: new Schema(
+        {
+          enabled: { type: Boolean, default: false },
+          sandbox: { type: Boolean, default: true },
+          merchantId: { type: String, default: "" },
+          storeId: { type: String, default: "" },
+          username: { type: String, default: "" },
+          passwordEnc: { type: String, default: "" },
+          hashKeyEnc: { type: String, default: "" },
+        },
+        { _id: false }
+      ),
+      default: () => ({}),
+      required: true,
+    },
+  },
+  { timestamps: true }
+)
+
+export const BillingSettings = defineModel("BillingSettings", billingSettingsSchema)
+export type BillingSettingsDoc = HydratedDocument<InferSchemaType<typeof billingSettingsSchema>>
 
 /* ------------------------------ Upload pieces ------------------------------ */
 

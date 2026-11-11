@@ -18,7 +18,7 @@ export default function PaymentSettingsPage() {
 async function PaymentSection() {
   const { shop } = await requireShop()
   return (
-    <>
+    <div className="grid items-start gap-6 xl:grid-cols-2">
       <CashForm
         initial={{
           enabled: shop.cash.enabled,
@@ -37,6 +37,6 @@ async function PaymentSection() {
           hasAppSecret: Boolean(shop.bkash.appSecretEnc),
         }}
       />
-    </>
+    </div>
   )
 }

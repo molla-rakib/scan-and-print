@@ -17,6 +17,10 @@ export type PaymentMethod = "bkash" | "cash"
 
 export const ACTIVE_JOB_STATUSES: JobStatus[] = ["queued", "printing"]
 
+/** A placed file that hasn't started printing within this time is cancelled and its file deleted. */
+export const QUEUE_EXPIRY_HOURS = 24
+export const QUEUE_EXPIRY_MS = QUEUE_EXPIRY_HOURS * 60 * 60 * 1000
+
 export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
   draft: "খসড়া",
   pending_payment: "পেমেন্টের অপেক্ষায়",
@@ -203,3 +207,32 @@ export function normalizeBdPhone(input: string): string | null {
   const digits = ascii.replace(/[\s\-()]/g, "").replace(/^\+?88/, "")
   return /^01[3-9]\d{8}$/.test(digits) ? digits : null
 }
+
+/* ------------------------- Subscription payments ------------------------- */
+
+/** How a shop paid us: extended by the admin, sent by hand (bKash / Nagad) or through a gateway. */
+export const SUBSCRIPTION_METHODS = ["admin", "manual_bkash", "manual_nagad", "bkash", "eps"] as const
+export type SubscriptionMethod = (typeof SUBSCRIPTION_METHODS)[number]
+
+export const SUBSCRIPTION_STATUSES = ["pending", "paid", "failed", "cancelled", "rejected"] as const
+export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number]
+
+export const SUBSCRIPTION_METHOD_LABELS: Record<SubscriptionMethod, string> = {
+  admin: "অ্যাডমিন",
+  manual_bkash: "বিকাশ (Send Money)",
+  manual_nagad: "নগদ (Nagad)",
+  bkash: "বিকাশ পেমেন্ট",
+  eps: "EPS",
+}
+
+export const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {
+  pending: "যাচাই চলছে",
+  paid: "সফল",
+  failed: "ব্যর্থ",
+  cancelled: "বাতিল",
+  rejected: "প্রত্যাখ্যাত",
+}
+
+/** Months an owner can pay for at once; a month is 30 days. */
+export const BILLING_MONTHS = [1, 3, 6, 12] as const
+export const DAYS_PER_MONTH = 30

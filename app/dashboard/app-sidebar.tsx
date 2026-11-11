@@ -11,6 +11,7 @@ import {
   QrCodeIcon,
   SettingsIcon,
   ShieldIcon,
+  WalletIcon,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -61,6 +62,12 @@ const nav = [
     label: "QR ও লিংক",
     icon: QrCodeIcon,
     color: "text-amber-600",
+  },
+  {
+    href: "/dashboard/billing",
+    label: "বিল ও পেমেন্ট",
+    icon: WalletIcon,
+    color: "text-emerald-600",
   },
   {
     href: "/dashboard/settings",

@@ -4,9 +4,10 @@ import { useState } from "react"
 import { BanknoteIcon, StoreIcon, TagIcon } from "lucide-react"
 import { BkashLogo } from "@/components/bkash"
 import { IconTile } from "@/components/icon-tile"
+import { MasterSwitch } from "@/components/master-switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldTitle } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
@@ -18,9 +19,7 @@ import { updateBkash, updateCashSettings, updatePricing, updateShopProfile } fro
 
 const SAVED = "Save হয়েছে"
 
-// Inside the settings panel the cards are plain sections split by hairlines, without their own frame.
-const SECTION = "gap-6 overflow-visible rounded-none bg-transparent py-0! ring-0 [--card-spacing:0px]"
-const SECTION_FOOTER = "justify-end border-t-0 bg-transparent"
+const FOOTER = "justify-end"
 
 export function ProfileForm({
   appUrl,
@@ -35,7 +34,7 @@ export function ProfileForm({
     setForm({ ...form, [key]: key === "slug" ? slugify(e.target.value) : e.target.value })
 
   return (
-    <Card className={SECTION}>
+    <Card>
       <form
         className="contents"
         onSubmit={(e) => {
@@ -46,11 +45,14 @@ export function ProfileForm({
         <CardHeader>
           <div className="flex items-center gap-3">
             <IconTile icon={StoreIcon} tone="blue" />
-            <CardTitle>দোকানের তথ্য</CardTitle>
+            <div>
+              <CardTitle>দোকানের তথ্য</CardTitle>
+              <CardDescription>গ্রাহকরা অর্ডার পেজে এই নাম, ঠিকানা ও ফোন নম্বর দেখবেন।</CardDescription>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
-          <FieldGroup>
+          <FieldGroup className="grid gap-6 md:grid-cols-2">
             <Field>
               <FieldLabel htmlFor="name">দোকানের নাম</FieldLabel>
               <Input id="name" required value={form.name} onChange={set("name")} />
@@ -72,7 +74,7 @@ export function ProfileForm({
             </Field>
           </FieldGroup>
         </CardContent>
-        <CardFooter className={SECTION_FOOTER}>
+        <CardFooter className={FOOTER}>
           <Button type="submit" disabled={pending}>
             {pending && <Spinner />} Save
           </Button>
@@ -141,7 +143,7 @@ export function PricingForm({ initial }: { initial: Pricing }) {
   })
 
   return (
-    <Card className={SECTION}>
+    <Card>
       <form
         className="contents"
         onSubmit={(e) => {
@@ -157,13 +159,13 @@ export function PricingForm({ initial }: { initial: Pricing }) {
         <CardHeader>
           <div className="flex items-center gap-3">
             <IconTile icon={TagIcon} tone="emerald" />
-            <CardTitle>প্রিন্টের দাম</CardTitle>
+            <div>
+              <CardTitle>প্রিন্টের দাম</CardTitle>
+              <CardDescription>এক পাশে প্রিন্টের দাম প্রতি পৃষ্ঠা। দুই পাশে প্রিন্টের দাম প্রতি কাগজ (এক কাগজে ২ পৃষ্ঠা)।</CardDescription>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <p className="text-sm text-muted-foreground">
-            এক পাশে প্রিন্টের দাম প্রতি পৃষ্ঠা। দুই পাশে প্রিন্টের দাম প্রতি কাগজ (এক কাগজে ২ পৃষ্ঠা)।
-          </p>
           <Field orientation="horizontal" className="rounded-lg border p-4">
             <FieldContent>
               <FieldTitle>রঙিন প্রিন্ট দুই পাশে</FieldTitle>
@@ -171,57 +173,59 @@ export function PricingForm({ initial }: { initial: Pricing }) {
             </FieldContent>
             <Switch checked={colorDuplex} onCheckedChange={setColorDuplex} aria-label="রঙিন প্রিন্ট দুই পাশে" />
           </Field>
-          {PAPER_ROWS.map(({ key, title }) => {
-            const row = form[key]
-            const always = key === "A4"
-            return (
-              <div key={key} className={cn("flex flex-col gap-4 rounded-lg border p-4", !row.enabled && "bg-muted/40")}>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-base font-semibold">{title}</span>
-                  {/* A4 is always offered. */}
-                  {!always && (
-                    <Switch
-                      checked={row.enabled}
-                      onCheckedChange={(enabled) => update(key, { enabled })}
-                      aria-label={`${title} চালু`}
-                    />
+          <div className="grid gap-4 xl:grid-cols-3">
+            {PAPER_ROWS.map(({ key, title }) => {
+              const row = form[key]
+              const always = key === "A4"
+              return (
+                <div key={key} className={cn("flex flex-col gap-4 rounded-lg border p-4", !row.enabled && "bg-muted/40")}>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-base font-semibold">{title}</span>
+                    {/* A4 is always offered. */}
+                    {!always && (
+                      <Switch
+                        checked={row.enabled}
+                        onCheckedChange={(enabled) => update(key, { enabled })}
+                        aria-label={`${title} চালু`}
+                      />
+                    )}
+                  </div>
+                  {row.enabled && (
+                    <>
+                      <div className="flex flex-col gap-3">
+                        <span className="text-sm font-medium text-muted-foreground">এক পাশে (প্রতি পৃষ্ঠা)</span>
+                        <div className="grid grid-cols-2 gap-4">
+                          <PriceInput id={`${key}-bw`} label="সাদা-কালো" value={row.bw} onChange={(bw) => update(key, { bw })} />
+                          <PriceInput id={`${key}-color`} label="রঙিন" value={row.color} onChange={(color) => update(key, { color })} />
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-3">
+                        <span className="text-sm font-medium text-muted-foreground">দুই পাশে (প্রতি কাগজ)</span>
+                        <div className="grid grid-cols-2 gap-4">
+                          <PriceInput
+                            id={`${key}-bw-sheet`}
+                            label="সাদা-কালো"
+                            value={row.bwSheet}
+                            onChange={(bwSheet) => update(key, { bwSheet })}
+                          />
+                          {colorDuplex && (
+                            <PriceInput
+                              id={`${key}-color-sheet`}
+                              label="রঙিন"
+                              value={row.colorSheet}
+                              onChange={(colorSheet) => update(key, { colorSheet })}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    </>
                   )}
                 </div>
-                {row.enabled && (
-                  <>
-                    <div className="flex flex-col gap-3">
-                      <span className="text-sm font-medium text-muted-foreground">এক পাশে (প্রতি পৃষ্ঠা)</span>
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <PriceInput id={`${key}-bw`} label="সাদা-কালো" value={row.bw} onChange={(bw) => update(key, { bw })} />
-                        <PriceInput id={`${key}-color`} label="রঙিন" value={row.color} onChange={(color) => update(key, { color })} />
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-3">
-                      <span className="text-sm font-medium text-muted-foreground">দুই পাশে (প্রতি কাগজ)</span>
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <PriceInput
-                          id={`${key}-bw-sheet`}
-                          label="সাদা-কালো"
-                          value={row.bwSheet}
-                          onChange={(bwSheet) => update(key, { bwSheet })}
-                        />
-                        {colorDuplex && (
-                          <PriceInput
-                            id={`${key}-color-sheet`}
-                            label="রঙিন"
-                            value={row.colorSheet}
-                            onChange={(colorSheet) => update(key, { colorSheet })}
-                          />
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </CardContent>
-        <CardFooter className={SECTION_FOOTER}>
+        <CardFooter className={FOOTER}>
           <Button type="submit" disabled={pending}>
             {pending && <Spinner />} Save
           </Button>
@@ -249,29 +253,26 @@ export function CashForm({ initial }: { initial: CashSettings }) {
   ] as const
 
   return (
-    <Card className={SECTION}>
+    <Card>
       <CardHeader>
         <div className="flex items-center gap-3">
           <IconTile icon={BanknoteIcon} tone="amber" />
-          <CardTitle>ক্যাশ পেমেন্ট</CardTitle>
+          <div>
+            <CardTitle>ক্যাশ পেমেন্ট</CardTitle>
+            <CardDescription>গ্রাহক কাউন্টারে টাকা দেবেন, অর্ডার সাথে সাথে প্রিন্ট হবে।</CardDescription>
+          </div>
         </div>
+        <CardAction className="self-center">
+          <MasterSwitch
+            checked={cash.enabled}
+            disabled={pending}
+            onCheckedChange={(enabled) => save({ ...cash, enabled }, enabled ? "ক্যাশ পেমেন্ট চালু" : "ক্যাশ পেমেন্ট বন্ধ")}
+            label="ক্যাশ পেমেন্ট"
+          />
+        </CardAction>
       </CardHeader>
       <CardContent>
         <FieldGroup>
-          <Field orientation="horizontal">
-            <FieldContent>
-              <FieldTitle>কাউন্টারে ক্যাশ নিন</FieldTitle>
-            </FieldContent>
-            <Switch
-              checked={cash.enabled}
-              disabled={pending}
-              onCheckedChange={(enabled) =>
-                save({ ...cash, enabled }, enabled ? "ক্যাশ পেমেন্ট চালু" : "ক্যাশ পেমেন্ট বন্ধ")
-              }
-              aria-label="ক্যাশ পেমেন্ট"
-            />
-          </Field>
-
           <div className={cn("flex flex-col gap-4 rounded-lg border bg-muted/40 p-4", !cash.enabled && "opacity-60")}>
             <p className="text-sm font-medium">গ্রাহকের কাছে যা চাওয়া হবে</p>
             {fields.map(({ key, title }) => {
@@ -317,7 +318,7 @@ export function BkashForm({ appUrl, initial }: { appUrl: string; initial: BkashI
   const [appSecret, setAppSecret] = useState("")
 
   return (
-    <Card className={SECTION}>
+    <Card>
       <form
         className="contents"
         onSubmit={(e) => {
@@ -334,8 +335,14 @@ export function BkashForm({ appUrl, initial }: { appUrl: string; initial: BkashI
         <CardHeader>
           <div className="flex items-center gap-3">
             <BkashLogo className="h-10 shrink-0 rounded-md border border-[#E2136E]/25 px-2.5 [&_img]:h-6" />
-            <CardTitle>বিকাশ মার্চেন্ট</CardTitle>
+            <div>
+              <CardTitle>বিকাশ মার্চেন্ট</CardTitle>
+              <CardDescription>গ্রাহকের টাকা সরাসরি আপনার বিকাশ মার্চেন্ট অ্যাকাউন্টে যাবে।</CardDescription>
+            </div>
           </div>
+          <CardAction className="self-center">
+            <MasterSwitch checked={enabled} onCheckedChange={setEnabled} label="বিকাশ পেমেন্ট" />
+          </CardAction>
         </CardHeader>
         <CardContent>
           <FieldGroup>
@@ -345,13 +352,6 @@ export function BkashForm({ appUrl, initial }: { appUrl: string; initial: BkashI
                 বিকাশকে Callback URL হিসেবে দিন: <span className="font-medium break-all">{appUrl}/api/bkash/callback</span>
               </AlertDescription>
             </Alert>
-
-            <Field orientation="horizontal">
-              <FieldContent>
-                <FieldTitle>বিকাশ পেমেন্ট চালু করুন</FieldTitle>
-              </FieldContent>
-              <Switch checked={enabled} onCheckedChange={setEnabled} aria-label="বিকাশ পেমেন্ট" />
-            </Field>
 
             <Field orientation="horizontal">
               <FieldContent>
@@ -394,7 +394,7 @@ export function BkashForm({ appUrl, initial }: { appUrl: string; initial: BkashI
             </div>
           </FieldGroup>
         </CardContent>
-        <CardFooter className={SECTION_FOOTER}>
+        <CardFooter className={FOOTER}>
           <Button type="submit" disabled={pending}>
             {pending && <Spinner />} Save ও যাচাই করুন
           </Button>

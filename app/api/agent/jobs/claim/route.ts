@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { authenticateAgent, jsonError } from "@/lib/api"
 import { pagesToRanges } from "@/lib/constants"
-import { rebalanceQueue } from "@/lib/jobs"
+import { expireStaleJobs, expireStaleJobsThrottled, rebalanceQueue } from "@/lib/jobs"
 import { Device, PrintJob } from "@/lib/models"
 import { env } from "@/lib/env"
 import { sweepOrphanFiles } from "@/lib/storage"
@@ -11,7 +11,10 @@ export async function POST(request: Request) {
   const agent = await authenticateAgent(request)
   if (!agent) return jsonError("Unauthorized", 401)
 
+  // This shop's stale jobs first, so a PC switched on after days never prints them; other shops' too, now and then.
+  await expireStaleJobs({ shopId: agent.shopId })
   await rebalanceQueue(agent.shopId)
+  expireStaleJobsThrottled().catch((error) => console.error("Job expiry failed", error))
   sweepOrphanFiles().catch((error) => console.error("File sweep failed", error))
 
   const job = await PrintJob.findOneAndUpdate(

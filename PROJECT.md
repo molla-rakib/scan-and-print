@@ -145,6 +145,41 @@ Code lives in `agent/` (see `agent/README.md`). Release with `agent/release.ps1`
 - [ ] Test page ranges, duplex and Legal/A3 on a real printer
 - [ ] Release agent 1.2.0 (Legal/A3 both-sides fix) with `agent/release.ps1`; confirm with the shop that reported it
 
+### 📋 Phase 2.6: Shops pay their subscription online (planned 2026-11-11)
+
+Today the admin extends `paidUntil` by hand. Owners will pay from **Dashboard → বিল** with any method the admin
+has turned on. Follow each provider's official API guide; no extra abstraction beyond what three methods need.
+
+**One flow for every method** (`SubscriptionPayment`, extended with `method`, `status`, `months`, `trxId`,
+`gatewayRef`, `submittedBy`):
+
+```
+pending ──► paid       (only this extends paidUntil and counts in "এই মাসের আয়")
+        ├─► failed
+        └─► cancelled / rejected
+```
+
+- Gateways (bKash, EPS): create payment → owner redirected → callback → **verify with the gateway's status API**
+  before marking paid. Callbacks are idempotent (only act on `pending`), like the shop bKash callback.
+- Manual: owner sends money to our number and submits TrxID + sender number + amount → admin approves or rejects.
+
+Tasks:
+
+- [x] Owner billing page `/dashboard/billing` (sidebar "বিল ও পেমেন্ট"): paid until, device limit × fee, pick months
+      (1/3/6/12), method, history; reminder banner on the overview ~5 days before expiry
+- [x] Admin → পেমেন্ট সেটআপ (`/dashboard/admin/payment-setup`): turn each method on/off; our bKash / Nagad numbers for
+      manual payments; bKash and EPS merchant credentials (encrypted with `ENCRYPTION_KEY`, verified on save)
+- [x] Manual bKash / Nagad payment + admin approval queue (Admin → পেমেন্ট, with a pending count on the tab)
+- [x] bKash Tokenized Checkout with our own merchant account (reuse `lib/bkash.ts`) *(code done; untested until we have credentials)*
+- [x] EPS gateway (https://eps.com.bd/): `lib/eps.ts` (GetToken → InitializeEPS → CheckMerchantTransactionStatus,
+      `x-hash` = Base64 HMAC-SHA512). *(Code done from EPS's published flow; untested until we have sandbox credentials —
+      check field names against EPS's official guide when the account arrives)*
+- [ ] Test bKash and EPS with sandbox credentials, then switch them to live
+- [ ] Manual "মেয়াদ বাড়ান" stays for special cases
+- Wording: label Nagad as "নগদ (Nagad)" so it isn't confused with cash ("ক্যাশ")
+
+Waiting on the owner: our bKash PGW merchant approval, EPS merchant account, our bKash/Nagad receiving numbers.
+
 ### 📋 Phase 3: Production launch
 
 - [ ] Choose hosting (VPS) + domain; production Docker Compose (Next.js, MongoDB with auth)
@@ -153,15 +188,38 @@ Code lives in `agent/` (see `agent/README.md`). Release with `agent/release.ps1`
 - [ ] Backups for MongoDB
 - [ ] Pilot with 1–3 real shops; test with their actual printers/copiers
 
+### 🎯 Maturity: 6.5 / 10 today, goal 9+ (reviewed 2026-11-11)
+
+Solid code and features; not production-hardened yet. Fix gradually, re-score after each step.
+
+| Area | Score | Why |
+|---|---|---|
+| Code quality & structure | 8 | Clean, typed, consistent; docs and tracker kept current; hard logic centralized (routing, pricing, `markPaid`) |
+| Features | 8 | Full flow: upload → pay → route → print, multi-file, print options, billing, discounts, admin |
+| Security | 7 | Encrypted secrets, hashed agent tokens, idempotent callbacks, gateway-verified payments. Missing rate limiting and a signed agent |
+| Performance (current scale) | 7 | Fine for tens of shops; each agent poll (every 3 s) runs re-routing + expiry + claim queries, heavy at hundreds |
+| Reliability & testing | 4 | No automated tests; never run on a real printer; bKash/EPS untested |
+| Operations | 4 | No backups, no monitoring/alerts, errors only in `console.error` |
+
+To reach 9+ (in order):
+
+- [ ] Test on a real shop PC + printer: B/W, color, copies, pages, both sides, Legal/A3 (biggest risk) → pilot-ready
+- [ ] MongoDB backups (excluding `printFiles.*`) + error monitoring and alerts (e.g. Sentry)
+- [ ] Automated tests for money and routing: `filePrice`, `monthlyFee`/discounts, `markPaid`, `deviceCanPrint`, job expiry
+- [ ] Rate limiting on public upload/order endpoints
+- [ ] Lighter agent polling: run `rebalanceQueue` / `expireStaleJobs` on a timer instead of on every claim
+- [ ] Code-signing certificate for the agent
+- [ ] Test bKash and EPS with sandbox credentials
+- [ ] Health checks + structured logging on the VPS; documented restore from backup
+
 ### 💡 Backlog / later ideas
 
-- [ ] Shop owners pay our subscription online via our own bKash merchant (today the admin extends it manually)
+- [ ] ~~Shop owners pay our subscription online~~ → planned as Phase 2.6
 - [ ] bKash refund for failed or cancelled paid jobs (currently handled manually)
 - [ ] WebSocket live updates instead of polling
 - [ ] More print options: page range, duplex, paper size
 - [ ] Printer health (paper/toner) via SNMP for network printers
 - [ ] Reports: daily/monthly income per shop, export
-- [ ] Rate limiting on public upload endpoints
 - [ ] Raspberry Pi / Linux agent (CUPS) for shops without a Windows PC
 
 ---
@@ -201,3 +259,8 @@ Code lives in `agent/` (see `agent/README.md`). Release with `agent/release.ps1`
 | 2026-11-10 | Local MongoDB kept restarting (exit 62): the volume had been opened once with `mongo:8` (now 8.3), which raised its featureCompatibilityVersion to 8.3, so the pinned `mongo:8.2` refused to start. `docker-compose.yml` now pins `mongo:8.3`; data kept. |
 | 2026-11-10 | **Both-sides pricing per sheet.** Duplex jobs are charged per sheet (30 pages = 15 sheets; 31 pages = 16), with a separate per-sheet price per paper size in Settings (defaults to the one-side price). Color printing is one side only by default; a switch in Settings turns on color both-sides with its own sheet price, and it also needs a printer that is both color and duplex. Tested via the API against the local DB (৳90 → ৳45, ৳2.5/sheet → ৳37.5, color 31 pages at ৳15/sheet → ৳240). |
 | 2026-11-11 | **Fixed: both sides on Legal/A3 didn't work.** (1) Agent 1.1.0 sent `paper=legal`/`paper=A3` to SumatraPDF 3.6.1, which only matches a driver's paper whose name is exactly that ("Legal 8.5 x 14" doesn't match), so it silently kept another paper and duplex got lost. Agent 1.2.0 sends `paperkind=<DMPAPER id>`. (2) Printers reported one duplex flag for all sizes, and the customer page offered both sides and Legal/A3 separately, so a job could need a printer that doesn't exist. Agent 1.2.0 asks the driver per size (`DocumentProperties` validation) and reports `duplexSizes`; the server routes, prices and offers both sides per paper size (`printerDuplexes()` in `lib/constants.ts`). Legal/A3 both sides stay hidden until the shop's agent is 1.2.0. |
+| 2026-11-11 | Admin shop table shows every column on phones (scrolls sideways). **Orders expire after 24 hours:** a file not printed within 24 h of being placed is cancelled and its PDF deleted, so a PC switched on days later doesn't print stale orders and storage isn't wasted; the customer's status page says why (and to ask the shop for a bKash refund). The "printer offline" notice on the order page now mentions the 24-hour limit. |
+| 2026-11-11 | Planned Phase 2.6: owners pay the subscription online (manual bKash/Nagad with admin approval, bKash merchant, EPS), all configured from Admin → পেমেন্ট সেটআপ and sharing one pending → paid/failed/rejected flow. |
+| 2026-11-11 | **Phase 2.6 built.** Owners pay the subscription from "বিল ও পেমেন্ট": manual bKash/Nagad Send Money (TrxID + sender, admin approves/rejects in Admin → পেমেন্ট), bKash merchant and EPS (redirect, then verified with the gateway's status API). All three are configured and switched on/off in Admin → পেমেন্ট সেটআপ, no code changes needed when the merchant accounts arrive. One flow: `SubscriptionPayment` pending → paid/failed/cancelled/rejected; only paid extends `paidUntil` (`markPaid()` in `lib/billing.ts`, idempotent) and counts as income. Main on/off switches are now a larger green "চালু / বন্ধ" switch at the right of each section title (`components/master-switch.tsx`), also on the shop's cash and bKash settings. |
+| 2026-11-11 | **Subscription discounts:** Admin → দোকান → menu → ছাড় gives a shop a % off or a fixed monthly fee, with an optional end date and a note. `monthlyFee()` in `lib/billing.ts` applies it everywhere (billing page with the full price struck through, gateway and manual payments, the admin's suggested amount, overview). The admin shop table has a মাসিক ফি column. **Settings redesigned** to match the admin pages: header + underlined tabs (`components/page-tabs.tsx`, shared with admin), full cards and wider layouts (profile in two columns, A4/Legal/A3 prices side by side, cash and bKash side by side) instead of a narrow column with empty space. |
+| 2026-11-11 | Maturity review: **6.5/10** (code 8, features 8, security 7, performance 7, reliability/testing 4, operations 4). Goal 9+; the steps to get there are listed under "🎯 Maturity" in section 4. |

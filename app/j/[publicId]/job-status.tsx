@@ -23,6 +23,7 @@ import {
   COLOR_MODE_LABELS,
   PAPER_SIZE_LABELS,
   PAYMENT_METHOD_LABELS,
+  QUEUE_EXPIRY_HOURS,
   SIDES_LABELS,
   formatNumber,
   formatTaka,
@@ -71,7 +72,14 @@ function headline(job: PublicOrderView): { title: string; text: string } {
     case "failed":
       return { title: "প্রিন্টে সমস্যা হয়েছে", text: "চিন্তা করবেন না — দোকানদারকে টোকেন দেখান, তিনি আবার প্রিন্ট করে দেবেন।" }
     case "cancelled":
-      return { title: "অর্ডার বাতিল হয়েছে", text: "প্রয়োজনে দোকানের সাথে যোগাযোগ করুন।" }
+      return job.expired
+        ? {
+            title: "অর্ডার বাতিল হয়েছে",
+            text: `দোকান ${formatNumber(QUEUE_EXPIRY_HOURS)} ঘণ্টার মধ্যে প্রিন্ট করেনি, তাই অর্ডারটি নিজে থেকে বাতিল হয়েছে।${
+              job.paymentMethod === "bkash" ? " বিকাশের টাকা ফেরত পেতে দোকানের সাথে যোগাযোগ করুন।" : ""
+            }`,
+          }
+        : { title: "অর্ডার বাতিল হয়েছে", text: "প্রয়োজনে দোকানের সাথে যোগাযোগ করুন।" }
     default:
       return { title: "", text: "" }
   }
