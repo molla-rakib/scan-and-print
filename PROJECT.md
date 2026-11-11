@@ -3,7 +3,7 @@
 Living document: the goal, the decisions behind the design, what is done, and what comes next.
 Update it whenever a feature lands, a decision changes, or a question gets answered.
 
-_Last updated: 2026-11-10_
+_Last updated: 2026-11-11_
 
 ---
 
@@ -143,6 +143,7 @@ Code lives in `agent/` (see `agent/README.md`). Release with `agent/release.ps1`
       Jobs needing these options only go to agents ≥ 1.1.0 (older ones would print every page on A4)
 - [ ] Release agent 1.1.0 (`agent/release.ps1` on Windows) and run `npm run migrate:orders` on the production database
 - [ ] Test page ranges, duplex and Legal/A3 on a real printer
+- [ ] Release agent 1.2.0 (Legal/A3 both-sides fix) with `agent/release.ps1`; confirm with the shop that reported it
 
 ### 📋 Phase 3: Production launch
 
@@ -199,3 +200,4 @@ Code lives in `agent/` (see `agent/README.md`). Release with `agent/release.ps1`
 | 2026-11-10 | Photo uploads failed on Vercel (PNG → PDF conversion in JS was too slow for the function). Photos are now re-saved in the browser as JPEG (92%, max 3508 px, white background, phone rotation applied; PNGs under 1 MB stay lossless), and the upload route has `maxDuration = 60`. A 62 MB PNG now uploads as a 1.7 MB file. |
 | 2026-11-10 | Local MongoDB kept restarting (exit 62): the volume had been opened once with `mongo:8` (now 8.3), which raised its featureCompatibilityVersion to 8.3, so the pinned `mongo:8.2` refused to start. `docker-compose.yml` now pins `mongo:8.3`; data kept. |
 | 2026-11-10 | **Both-sides pricing per sheet.** Duplex jobs are charged per sheet (30 pages = 15 sheets; 31 pages = 16), with a separate per-sheet price per paper size in Settings (defaults to the one-side price). Color printing is one side only by default; a switch in Settings turns on color both-sides with its own sheet price, and it also needs a printer that is both color and duplex. Tested via the API against the local DB (৳90 → ৳45, ৳2.5/sheet → ৳37.5, color 31 pages at ৳15/sheet → ৳240). |
+| 2026-11-11 | **Fixed: both sides on Legal/A3 didn't work.** (1) Agent 1.1.0 sent `paper=legal`/`paper=A3` to SumatraPDF 3.6.1, which only matches a driver's paper whose name is exactly that ("Legal 8.5 x 14" doesn't match), so it silently kept another paper and duplex got lost. Agent 1.2.0 sends `paperkind=<DMPAPER id>`. (2) Printers reported one duplex flag for all sizes, and the customer page offered both sides and Legal/A3 separately, so a job could need a printer that doesn't exist. Agent 1.2.0 asks the driver per size (`DocumentProperties` validation) and reports `duplexSizes`; the server routes, prices and offers both sides per paper size (`printerDuplexes()` in `lib/constants.ts`). Legal/A3 both sides stay hidden until the shop's agent is 1.2.0. |

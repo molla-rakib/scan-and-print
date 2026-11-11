@@ -5,6 +5,8 @@ import {
   AGENT_ONLINE_WINDOW_MS,
   EXTRA_PAPER_SIZES,
   MIN_AGENT_VERSION_FOR_OPTIONS,
+  printerDuplexes,
+  printerHasPaper,
   versionAtLeast,
   type JobStatus,
   type PaperPrices,
@@ -97,10 +99,9 @@ type JobNeeds = Pick<PrintJobDoc, "colorMode" | "duplex" | "paperSize" | "pages"
 /** Whether a device can print a job exactly as ordered. */
 export function deviceCanPrint(device: DeviceDoc & { agentVersion: string }, job: JobNeeds) {
   if (job.colorMode === "color" && !device.color) return false
-  if (job.duplex && !device.duplex) return false
   const size = (job.paperSize ?? "A4") as PaperSize
-  // An empty list means the agent didn't report sizes; trust the owner then.
-  if (size !== "A4" && device.paperSizes?.length && !device.paperSizes.includes(size)) return false
+  if (!printerHasPaper(device, size)) return false
+  if (job.duplex && !printerDuplexes(device, size)) return false
   const needsOptions = job.duplex || size !== "A4" || (job.pages?.length ?? 0) > 0
   return !needsOptions || versionAtLeast(device.agentVersion, MIN_AGENT_VERSION_FOR_OPTIONS)
 }

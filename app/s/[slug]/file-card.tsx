@@ -67,10 +67,21 @@ export function printedPages(item: FileItem) {
   return item.options.pages.length || item.pageCount || 0
 }
 
-/** Whether both sides can be chosen for this file: more than one page, and color only if the shop allows it. */
+/** Whether a printer in the shop can print both sides in this color on this paper size. */
+function duplexOffered(shop: PublicShopView, colorMode: ColorMode, size: PaperSize) {
+  return shop.duplexSizes[colorMode].includes(size)
+}
+
+/** Whether both sides can be chosen for this file: more than one page, and a printer that can do it. */
 function duplexAvailable(shop: PublicShopView, item: FileItem) {
-  if (!shop.hasDuplex || printedPages(item) < 2) return false
-  return item.options.colorMode === "bw" || shop.colorDuplex
+  return printedPages(item) > 1 && duplexOffered(shop, item.options.colorMode, item.options.paperSize)
+}
+
+/** Why "both sides" isn't offered for these options, when the shop does print both sides on something. */
+function sidesNote(shop: PublicShopView, options: PrintOptions) {
+  const size = PAPER_SIZE_LABELS[options.paperSize]
+  if (options.colorMode === "color" && duplexOffered(shop, "bw", options.paperSize)) return "রঙিন প্রিন্ট শুধু কাগজের এক পাশে হয়"
+  return `${size} কাগজে শুধু এক পাশে প্রিন্ট হয়`
 }
 
 /** The options as they will be ordered: "both sides" is dropped when it no longer applies. */
@@ -185,7 +196,7 @@ export function FileCard({
   const { duplex } = effectiveOptions(shop, item)
   // Price of one unit for a color mode or paper size: per page on one side, per sheet on both sides.
   const unitHint = (p: PaperPrices, colorMode: ColorMode) => {
-    const sheet = duplex && (colorMode === "bw" || shop.colorDuplex)
+    const sheet = duplex && duplexOffered(shop, colorMode, p.size)
     return `${formatTaka(unitPrice(p, colorMode, sheet))}/${sheet ? "কাগজ" : "পৃষ্ঠা"}`
   }
 
@@ -313,12 +324,11 @@ export function FileCard({
               ]}
             />
           ) : (
-            shop.hasDuplex &&
-            options.colorMode === "color" &&
-            printedPages(item) > 1 && (
+            printedPages(item) > 1 &&
+            (shop.duplexSizes.bw.length > 0 || shop.duplexSizes.color.length > 0) && (
               <p className="flex items-center gap-2 text-sm text-muted-foreground">
                 <LayersIcon className="size-4 shrink-0" />
-                রঙিন প্রিন্ট শুধু কাগজের এক পাশে হয়
+                {sidesNote(shop, options)}
               </p>
             )
           )}

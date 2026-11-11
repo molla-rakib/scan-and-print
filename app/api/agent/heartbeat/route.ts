@@ -5,6 +5,13 @@ import { PAPER_SIZES } from "@/lib/constants"
 import { rebalanceQueue } from "@/lib/jobs"
 import { Agent, Device } from "@/lib/models"
 
+/** A list of our paper sizes from the agent (1.1.0+); unknown values are ignored. */
+const paperSizeList = z
+  .array(z.string())
+  .max(100)
+  .optional()
+  .transform((sizes) => sizes?.filter((s): s is (typeof PAPER_SIZES)[number] => PAPER_SIZES.includes(s as never)))
+
 const schema = z.object({
   machineName: z.string().trim().max(120).optional(),
   version: z.string().trim().max(40).optional(),
@@ -15,11 +22,9 @@ const schema = z.object({
         color: z.boolean().default(false),
         duplex: z.boolean().default(false),
         // Agents 1.1.0+: which of our paper sizes the driver supports. Unknown values are ignored.
-        paperSizes: z
-          .array(z.string())
-          .max(100)
-          .optional()
-          .transform((sizes) => sizes?.filter((s): s is (typeof PAPER_SIZES)[number] => PAPER_SIZES.includes(s as never))),
+        paperSizes: paperSizeList,
+        // Agents 1.2.0+: the sizes the driver accepts for printing on both sides.
+        duplexSizes: paperSizeList,
         state: z.string().trim().max(40).default("idle"),
       })
     )
@@ -50,6 +55,7 @@ export async function POST(request: Request) {
           state: printer.state,
           present: true,
           ...(printer.paperSizes ? { paperSizes: printer.paperSizes } : {}),
+          ...(printer.duplexSizes ? { duplexSizes: printer.duplexSizes } : {}),
         },
       },
       { upsert: true }

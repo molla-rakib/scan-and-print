@@ -13,11 +13,11 @@ import { fileURLToPath } from "node:url"
 const APP_URL = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "")
 const TOKEN_FILE = fileURLToPath(new URL("./.agent-token", import.meta.url))
 // Counts as the current agent, so jobs with page ranges, both sides or other paper sizes reach it.
-const VERSION = "1.1.0-dev"
+const VERSION = "1.2.0-dev"
 
 // Fake printers this "PC" reports.
 const PRINTERS = [
-  { systemName: "HP LaserJet Pro M404 (B&W)", color: false, duplex: true, paperSizes: ["A4", "Legal"] },
+  { systemName: "HP LaserJet Pro M404 (B&W)", color: false, duplex: true, paperSizes: ["A4", "Legal"], duplexSizes: ["A4"] },
   { systemName: "Epson L3250 (Color)", color: true, duplex: false, paperSizes: ["A4", "Legal"] },
 ]
 

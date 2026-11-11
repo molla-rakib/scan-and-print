@@ -77,7 +77,7 @@ Agents authenticate with a bearer token; only its SHA-256 hash is stored.
 
 - `pair` exchanges a one-time code (created by `createPairingCode` in `app/dashboard/actions.ts`) for a token.
 - `heartbeat` upserts the agent's printers. New devices default to `enabled: false`, and enabled devices count against `shop.deviceLimit`.
-- `heartbeat` also takes each printer's supported `paperSizes` (agent 1.1.0+).
+- `heartbeat` also takes each printer's supported `paperSizes` (agent 1.1.0+) and `duplexSizes`, the sizes it can print on both sides (agent 1.2.0+; without it only A4 counts as both-sides). `printerDuplexes()` / `printerHasPaper()` in `lib/constants.ts` are used for routing, checkout and the customer page.
 - `jobs/claim` returns the next job, including `pages` (SumatraPDF ranges like `"1-3,5"`, or null), `duplex` and `paperSize`; the agent downloads it from `jobs/[id]/file` with its bearer token.
 - `jobs/[id]` reports the result.
 

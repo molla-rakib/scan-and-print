@@ -91,6 +91,25 @@ export function filePrice(paper: PaperPrices, options: { colorMode: ColorMode; d
   return Math.round(unitPrice(paper, options.colorMode, options.duplex) * units * options.copies * 100) / 100
 }
 
+/** What a printer reported about itself (agent heartbeat). */
+export type PrinterCaps = { color: boolean; duplex: boolean; paperSizes?: string[]; duplexSizes?: string[] }
+
+/** Whether a printer takes this paper size. An empty list means the agent didn't report sizes; trust the owner then. */
+export function printerHasPaper(printer: PrinterCaps, size: PaperSize) {
+  return size === "A4" || !printer.paperSizes?.length || printer.paperSizes.includes(size)
+}
+
+/**
+ * Whether a printer can print both sides on this paper size. Many printers duplex A4 only, so Legal/A3 need
+ * the agent (1.2.0+) to have confirmed it with the driver; A4 trusts the printer's duplex flag when older
+ * agents didn't report per-size support.
+ */
+export function printerDuplexes(printer: PrinterCaps, size: PaperSize) {
+  if (!printer.duplex) return false
+  if (printer.duplexSizes?.length) return printer.duplexSizes.includes(size)
+  return size === "A4"
+}
+
 /**
  * Agents older than this print every page on one side of A4, so jobs that pick pages, print both sides
  * or use another paper size only go to newer agents.

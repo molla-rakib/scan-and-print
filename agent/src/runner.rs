@@ -149,6 +149,7 @@ fn heartbeat(
             color: p.color,
             duplex: p.duplex,
             paper_sizes: p.paper_sizes.iter().map(|s| s.to_string()).collect(),
+            duplex_sizes: p.duplex_sizes.iter().map(|s| s.to_string()).collect(),
             state: p.state.to_string(),
         })
         .collect();

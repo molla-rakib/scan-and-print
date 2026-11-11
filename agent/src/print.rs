@@ -41,7 +41,7 @@ pub struct PrintOptions<'a> {
     pub paper_size: Option<&'a str>,
 }
 
-/// The value of SumatraPDF's `-print-settings`, e.g. "monochrome,2x,1-3,5,duplexlong,paper=A4,shrink".
+/// The value of SumatraPDF's `-print-settings`, e.g. "monochrome,2x,1-3,5,duplexlong,paperkind=9,shrink".
 fn print_settings(options: &PrintOptions) -> Result<String, String> {
     let mut settings = vec![
         if options.color { "color" } else { "monochrome" }.to_string(),
@@ -54,13 +54,13 @@ fn print_settings(options: &PrintOptions) -> Result<String, String> {
         settings.push(pages.to_string());
     }
     settings.push(if options.duplex { "duplexlong" } else { "simplex" }.to_string());
-    let paper = match options.paper_size.unwrap_or("A4") {
-        "A4" => "A4",
-        "Legal" => "legal",
-        "A3" => "A3",
-        other => return Err(format!("অজানা কাগজের মাপ ({other})")),
+    let paper = options.paper_size.unwrap_or("A4");
+    let Some(paper_id) = crate::printers::paper_id(paper) else {
+        return Err(format!("অজানা কাগজের মাপ ({paper})"));
     };
-    settings.push(format!("paper={paper}"));
+    // By id, not "paper=legal": SumatraPDF 3.6.1 only matches a name when the driver calls the paper exactly
+    // that ("Legal 8.5 x 14" doesn't match), and then silently keeps another paper, often losing duplex too.
+    settings.push(format!("paperkind={paper_id}"));
     // "shrink" only scales down pages larger than the paper, so normal A4 prints at 100%.
     // On other paper sizes "fit" scales the page to fill the sheet.
     settings.push(if paper == "A4" { "shrink" } else { "fit" }.to_string());

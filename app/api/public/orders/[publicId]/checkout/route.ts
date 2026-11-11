@@ -2,7 +2,17 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { jsonError, parseBody } from "@/lib/api"
 import { BkashError, createPayment, shopBkashCredentials } from "@/lib/bkash"
-import { MAX_COPIES, PAPER_SIZES, cleanPages, filePrice, normalizeBdPhone, unitPrice } from "@/lib/constants"
+import {
+  MAX_COPIES,
+  PAPER_SIZES,
+  PAPER_SIZE_LABELS,
+  cleanPages,
+  filePrice,
+  normalizeBdPhone,
+  printerDuplexes,
+  printerHasPaper,
+  unitPrice,
+} from "@/lib/constants"
 import { connectDb } from "@/lib/db"
 import { env } from "@/lib/env"
 import { cashFields, colorDuplexAllowed, paperPrices, paymentOptions, placeOrder, shopIsOpen } from "@/lib/jobs"
@@ -57,18 +67,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ pub
     if (body.files.length !== jobs.length || jobs.some((job) => !body.files!.some((f) => f.id === job.id))) {
       return jsonError("ফাইলের তালিকা মিলছে না। পেজটি রিফ্রেশ করে আবার চেষ্টা করুন।", 409)
     }
-    const enabled = await Device.find({ shopId: shop._id, enabled: true }).select("color duplex")
+    const enabled = await Device.find({ shopId: shop._id, enabled: true }).select("color duplex paperSizes duplexSizes")
 
     for (const job of jobs) {
       const options = body.files.find((f) => f.id === job.id)!
       if (options.colorMode === "color" && !enabled.some((d) => d.color)) return jsonError("এই দোকানে রঙিন প্রিন্ট পাওয়া যায় না")
-      if (options.duplex && !enabled.some((d) => d.duplex)) return jsonError("এই দোকানে দুই পাশে প্রিন্ট পাওয়া যায় না")
-      if (
-        options.duplex &&
-        options.colorMode === "color" &&
-        (!colorDuplexAllowed(shop) || !enabled.some((d) => d.color && d.duplex))
-      ) {
-        return jsonError("এই দোকানে রঙিন প্রিন্ট শুধু এক পাশে হয়")
+      if (options.duplex) {
+        const size = options.paperSize
+        const fits = (d: (typeof enabled)[number]) => printerHasPaper(d, size) && printerDuplexes(d, size)
+        if (!enabled.some(fits)) {
+          return jsonError(`এই দোকানে ${PAPER_SIZE_LABELS[size]} কাগজে দুই পাশে প্রিন্ট পাওয়া যায় না`)
+        }
+        if (options.colorMode === "color" && (!colorDuplexAllowed(shop) || !enabled.some((d) => d.color && fits(d)))) {
+          return jsonError("এই দোকানে রঙিন প্রিন্ট শুধু এক পাশে হয়")
+        }
       }
       const paper = paperPrices(shop, options.paperSize)
       if (!paper) return jsonError("এই দোকানে এই কাগজের মাপ পাওয়া যায় না")

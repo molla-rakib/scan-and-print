@@ -141,6 +141,8 @@ const deviceSchema = new Schema(
     duplex: { type: Boolean, default: false },
     // Paper sizes the driver supports (of PAPER_SIZES). Empty when the agent doesn't report them.
     paperSizes: { type: [String], default: [] },
+    // Paper sizes the printer can print on both sides (agent 1.2.0+). Empty: only A4, if `duplex`.
+    duplexSizes: { type: [String], default: [] },
     // Only enabled devices receive jobs; enabled devices count against the shop's device limit.
     enabled: { type: Boolean, default: false },
     // Whether the printer was present in the agent's last heartbeat.

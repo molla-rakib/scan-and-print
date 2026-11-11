@@ -52,6 +52,8 @@ pub struct PrinterReport {
     pub color: bool,
     pub duplex: bool,
     pub paper_sizes: Vec<String>,
+    /// Paper sizes the printer can print on both sides (agent 1.2.0+).
+    pub duplex_sizes: Vec<String>,
     pub state: String,
 }
 

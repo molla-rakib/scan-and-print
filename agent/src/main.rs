@@ -267,9 +267,10 @@ fn list_printers() -> ExitCode {
             for p in list {
                 println!("{}", p.name);
                 println!(
-                    "    {} | duplex: {} | state: {} | port: {} | driver: {}",
+                    "    {} | paper: {} | both sides: {} | state: {} | port: {} | driver: {}",
                     if p.color { "color" } else { "black & white" },
-                    if p.duplex { "yes" } else { "no" },
+                    p.paper_sizes.join("/"),
+                    if p.duplex { p.duplex_sizes.join("/") } else { "no".to_string() },
                     p.state,
                     p.port,
                     p.driver

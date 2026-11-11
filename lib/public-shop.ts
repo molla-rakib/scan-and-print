@@ -1,5 +1,5 @@
 import "server-only"
-import { formatPageSelection, type ColorMode, type JobStatus, type PaperSize } from "@/lib/constants"
+import { formatPageSelection, printerDuplexes, printerHasPaper, type ColorMode, type JobStatus, type PaperSize } from "@/lib/constants"
 import { connectDb } from "@/lib/db"
 import { availableDevices, cashFields, colorDuplexAllowed, orderStatus, paperOptions, paymentOptions, queuePosition, shopIsOpen } from "@/lib/jobs"
 import { Device, PrintJob, Shop, type OrderDoc, type ShopDoc } from "@/lib/models"
@@ -12,21 +12,28 @@ export async function findShopBySlug(slug: string) {
 /** Everything the customer page needs to know about a shop. Never exposes credentials. */
 export async function publicShopView(shop: ShopDoc) {
   const [enabled, online] = await Promise.all([
-    Device.find({ shopId: shop._id, enabled: true }).select("color duplex"),
+    Device.find({ shopId: shop._id, enabled: true }).select("color duplex paperSizes duplexSizes"),
     availableDevices(shop._id),
   ])
+  const papers = paperOptions(shop)
   return {
     name: shop.name,
     slug: shop.slug,
     address: shop.address,
     open: shopIsOpen(shop),
-    papers: paperOptions(shop),
+    papers,
     payments: paymentOptions(shop),
     cashFields: cashFields(shop),
     hasColor: enabled.some((d) => d.color),
-    hasDuplex: enabled.some((d) => d.duplex),
-    // Color on both sides needs the owner's switch and a printer that does both color and duplex.
-    colorDuplex: colorDuplexAllowed(shop) && enabled.some((d) => d.color && d.duplex),
+    // Paper sizes that one printer can print on both sides; color also needs the owner's switch.
+    duplexSizes: {
+      bw: papers.map((p) => p.size).filter((size) => enabled.some((d) => printerHasPaper(d, size) && printerDuplexes(d, size))),
+      color: colorDuplexAllowed(shop)
+        ? papers
+            .map((p) => p.size)
+            .filter((size) => enabled.some((d) => d.color && printerHasPaper(d, size) && printerDuplexes(d, size)))
+        : [],
+    } satisfies Record<ColorMode, PaperSize[]>,
     online: online.length > 0,
   }
 }
