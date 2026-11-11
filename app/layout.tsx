@@ -1,5 +1,7 @@
 import type { Metadata } from "next"
 import { Noto_Sans_Bengali } from "next/font/google"
+import { GoogleTagManager } from "@next/third-parties/google"
+import { env } from "@/lib/env"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import "./globals.css"
@@ -17,8 +19,12 @@ export const metadata: Metadata = {
 }
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
+  // Google Tag Manager (Google Analytics is set up inside it). Production builds only, so local
+  // development does not count as visits. The layout is prerendered, so the ID is baked in at build time.
+  const gtmId = process.env.NODE_ENV === "production" ? env.googleAnalyticsId : null
   return (
     <html lang="bn" className={`${notoBengali.variable} h-full antialiased`}>
+      {gtmId && <GoogleTagManager gtmId={gtmId} />}
       <body className="flex min-h-full flex-col">
         <TooltipProvider>{children}</TooltipProvider>
         <Toaster position="top-center" richColors />

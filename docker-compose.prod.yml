@@ -1,16 +1,22 @@
 # Mudron in production on the VPS (/var/www/mudron). MongoDB and Caddy come from the shared
 # /var/www/infra stack (deploy/infra); this file only runs the app. See deploy/README.md.
 #
-#   cd /var/www/mudron && git pull && docker compose -f deploy/docker-compose.yml up -d --build
+#   cd /var/www/mudron && git pull && docker compose -f docker-compose.prod.yml up -d --build
+#
+# It sits in the repo root so Compose reads ./.env for the ${…} build args below.
 name: mudron
 
 services:
   # Named `mudron` (not `app`): it is the DNS name Caddy uses on the shared infra network.
   mudron:
-    build: ..
+    build:
+      context: .
+      args:
+        # Baked into the prerendered pages (see Dockerfile); rebuild after changing it.
+        GOOGLE_ANALYTICS_ID: ${GOOGLE_ANALYTICS_ID:-}
     image: mudron-app
     restart: unless-stopped
-    env_file: ../.env
+    env_file: .env
     networks: [infra]
     healthcheck:
       test: wget -qO- http://127.0.0.1:3000/ >/dev/null || exit 1

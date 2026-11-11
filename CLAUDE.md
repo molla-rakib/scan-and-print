@@ -113,7 +113,7 @@ The real Windows agent is a Rust tray app in `agent/` (see `agent/README.md`; ta
 
 ## Production
 
-`https://mudron.org` runs on a VPS in Docker (`Dockerfile`, Next standalone output, `deploy/docker-compose.yml`), behind a Caddy and a MongoDB 8 shared with another site (`deploy/infra`). How to deploy, back up and read logs: `deploy/README.md`. Vercel and MongoDB Atlas were the old production; they are no longer used once agents are on 1.3.0.
+`https://mudron.org` runs on a VPS in Docker (`Dockerfile`, Next standalone output, `docker-compose.prod.yml`), behind a Caddy and a MongoDB 8 shared with another site (`deploy/infra`). How to deploy, back up and read logs: `deploy/README.md`. Vercel and MongoDB Atlas were the old production; they are no longer used once agents are on 1.3.0.
 
 ## Environment
 

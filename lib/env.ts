@@ -28,6 +28,10 @@ export const env = {
       .map((email) => email.trim().toLowerCase())
       .filter(Boolean)
   },
+  /** Google Tag Manager container ID (GTM-…); optional. Read at build time, see Dockerfile. */
+  get googleAnalyticsId() {
+    return process.env.GOOGLE_ANALYTICS_ID || null
+  },
   get mongodbUri() {
     return required("MONGODB_URI")
   },
