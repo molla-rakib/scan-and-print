@@ -6,7 +6,7 @@ mod icon;
 
 fn main() {
     println!("cargo:rerun-if-changed=src/icon.rs");
-    println!("cargo:rerun-if-env-changed=SCAN_PRINT_SERVER");
+    println!("cargo:rerun-if-env-changed=MUDRON_SERVER");
 
     let out = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
     let ico = out.join("app.ico");
@@ -32,7 +32,7 @@ BEGIN
       VALUE "FileVersion", "{version}"
       VALUE "ProductName", "Mudron Agent"
       VALUE "ProductVersion", "{version}"
-      VALUE "OriginalFilename", "ScanAndPrintAgent.exe"
+      VALUE "OriginalFilename", "Mudron.exe"
     END
   END
   BLOCK "VarFileInfo"

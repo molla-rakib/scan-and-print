@@ -3,7 +3,7 @@
 Living document: the goal, the decisions behind the design, what is done, and what comes next.
 Update it whenever a feature lands, a decision changes, or a question gets answered.
 
-_Last updated: 2026-11-11_
+_Last updated: 2026-11-12_
 
 ---
 
@@ -101,9 +101,10 @@ that Windows can print to will work.
 ### 🔜 Next: Phase 2, Windows print agent (Rust)
 
 Code lives in `agent/` (see `agent/README.md`). Release with `agent/release.ps1`, which publishes
-`public/downloads/ScanAndPrintAgent.exe` + `agent.json`. Version 1.0.0 is built for `https://scan-and-print.vercel.app`; 1.1.0 (print options) is coded but not released yet.
+`public/downloads/Mudron.exe` + `agent.json`. Since 1.3.0 it is built for `https://mudron.org` (1.0.0–1.2.0 were
+`ScanAndPrintAgent.exe` for `https://scan-and-print.vercel.app`).
 
-- [x] Pairing: `scan-print-agent pair <CODE>`, token saved encrypted with Windows DPAPI
+- [x] Pairing: `mudron pair <CODE>`, token saved encrypted with Windows DPAPI
 - [x] Enumerate installed Windows printers + detect color/duplex capability and state (offline, paper out, …);
       fax / print-to-file printers are not offered
 - [x] Heartbeat every ~30 s; poll for jobs every ~3 s; back off and reconnect after internet loss;
@@ -118,7 +119,7 @@ Code lives in `agent/` (see `agent/README.md`). Release with `agent/release.ps1`
       have no console window. *(Tested on the dev PC)*
 - [x] Status window on the shop PC (tray click / shortcut): online state, shop, printers, last job, version.
       (Replaced the cash-approval popup, removed 2026-11-07 because cash orders no longer need approval.)
-- [x] Installer: the downloaded exe installs itself per user (no admin) to `%LOCALAPPDATA%\Programs\ScanAndPrint`,
+- [x] Installer: the downloaded exe installs itself per user (no admin) to `%LOCALAPPDATA%\Programs\Mudron`,
       Start Menu + desktop shortcuts, Settings → Apps entry with uninstall (removes everything incl. saved token).
       "এজেন্ট ডাউনলোড" button + link in the pairing dialog on Dashboard → ডিভাইস. *(Tested install/uninstall)*
 - [x] SumatraPDF served from `public/downloads/` and downloaded by the agent on first start (SHA-256 pinned)
@@ -263,4 +264,5 @@ To reach 9+ (in order):
 | 2026-11-11 | Planned Phase 2.6: owners pay the subscription online (manual bKash/Nagad with admin approval, bKash merchant, EPS), all configured from Admin → পেমেন্ট সেটআপ and sharing one pending → paid/failed/rejected flow. |
 | 2026-11-11 | **Phase 2.6 built.** Owners pay the subscription from "বিল ও পেমেন্ট": manual bKash/Nagad Send Money (TrxID + sender, admin approves/rejects in Admin → পেমেন্ট), bKash merchant and EPS (redirect, then verified with the gateway's status API). All three are configured and switched on/off in Admin → পেমেন্ট সেটআপ, no code changes needed when the merchant accounts arrive. One flow: `SubscriptionPayment` pending → paid/failed/cancelled/rejected; only paid extends `paidUntil` (`markPaid()` in `lib/billing.ts`, idempotent) and counts as income. Main on/off switches are now a larger green "চালু / বন্ধ" switch at the right of each section title (`components/master-switch.tsx`), also on the shop's cash and bKash settings. |
 | 2026-11-11 | **Subscription discounts:** Admin → দোকান → menu → ছাড় gives a shop a % off or a fixed monthly fee, with an optional end date and a note. `monthlyFee()` in `lib/billing.ts` applies it everywhere (billing page with the full price struck through, gateway and manual payments, the admin's suggested amount, overview). The admin shop table has a মাসিক ফি column. **Settings redesigned** to match the admin pages: header + underlined tabs (`components/page-tabs.tsx`, shared with admin), full cards and wider layouts (profile in two columns, A4/Legal/A3 prices side by side, cash and bKash side by side) instead of a narrow column with empty space. |
+| 2026-11-12 | **Renamed everything to Mudron; production moves to `https://mudron.org`** (self-hosted VPS, Caddy, MongoDB shared with another app in its own container). Agent 1.3.0 is `Mudron.exe` (CLI `mudron`), installs to `%LOCALAPPDATA%\Programs\Mudron`, data in `%APPDATA%\Mudron`, registry/mutex names `Mudron`, env vars `MUDRON_SERVER` / `MUDRON_SUMATRA`. Installing it over a ≤ 1.2.0 "ScanAndPrint" agent stops the old one, takes over its pairing (server switched to mudron.org) and removes the old files and registry entries. npm package, compose project and local DB name are `mudron`. |
 | 2026-11-11 | Maturity review: **6.5/10** (code 8, features 8, security 7, performance 7, reliability/testing 4, operations 4). Goal 9+; the steps to get there are listed under "🎯 Maturity" in section 4. |

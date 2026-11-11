@@ -63,7 +63,7 @@ fn sleep(duration: Duration, stop: &AtomicBool) -> bool {
 
 pub fn run(cfg: &Config, opts: &Options, stop: Arc<AtomicBool>, notify: impl Fn(RunnerEvent)) -> Exit {
     let client = Client::new(&cfg.server, Some(cfg.token.clone()));
-    let work_dir = std::env::temp_dir().join("ScanAndPrint");
+    let work_dir = std::env::temp_dir().join("Mudron");
     clear_dir(&work_dir);
 
     log(&format!("Mudron agent {VERSION} connected to {}", cfg.server));

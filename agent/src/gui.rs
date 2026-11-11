@@ -608,7 +608,7 @@ fn build_popup(
     Some(Popup { window, webview })
 }
 
-/// Debug builds only: `scan-print-agent ui-preview <pair|pair-error|pair-done|status|status-setup|status-offline>`
+/// Debug builds only: `mudron ui-preview <pair|pair-error|pair-done|status|status-setup|status-offline>`
 /// opens a window with sample data, without touching the saved connection or a running agent.
 #[cfg(debug_assertions)]
 pub fn preview(which: &str) {
@@ -634,7 +634,7 @@ pub fn preview(which: &str) {
         })),
     };
     let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
-    let mut web_context = WebContext::new(Some(std::env::temp_dir().join("scan-print-ui-preview")));
+    let mut web_context = WebContext::new(Some(std::env::temp_dir().join("mudron-ui-preview")));
     let Some(popup) = build_popup(&event_loop, &mut web_context, event_loop.create_proxy(), page, false) else { return };
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;

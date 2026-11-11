@@ -1,6 +1,6 @@
 # Local MongoDB (single-node replica set, needed for transactions). PDFs are stored in it via GridFS.
 # Start with: docker compose up -d
-name: scan-and-print
+name: mudron
 
 services:
   mongo:

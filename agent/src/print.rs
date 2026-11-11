@@ -13,7 +13,7 @@ const PRINT_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 /// Where to look for SumatraPDF.exe, in order. The installer will put it next to the agent.
 pub fn find_sumatra() -> Option<PathBuf> {
     let mut candidates = Vec::new();
-    if let Some(path) = std::env::var_os("SCAN_PRINT_SUMATRA") {
+    if let Some(path) = std::env::var_os("MUDRON_SUMATRA") {
         candidates.push(PathBuf::from(path));
     }
     if let Some(dir) = std::env::current_exe().ok().and_then(|exe| exe.parent().map(Path::to_path_buf)) {

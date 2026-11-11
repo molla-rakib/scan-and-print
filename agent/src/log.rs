@@ -1,4 +1,4 @@
-//! Log to the console (when there is one) and to `%APPDATA%\ScanAndPrint\agent.log`.
+//! Log to the console (when there is one) and to `%APPDATA%\Mudron\agent.log`.
 //! The tray app has no console, so the file is what the owner (or we) can look at.
 
 use std::{

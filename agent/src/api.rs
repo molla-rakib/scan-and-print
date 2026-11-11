@@ -109,7 +109,7 @@ impl Client {
             .timeout_connect(Some(Duration::from_secs(15)))
             .timeout_recv_response(Some(Duration::from_secs(30)))
             .timeout_recv_body(Some(Duration::from_secs(600)))
-            .user_agent(concat!("scan-print-agent/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("mudron-agent/", env!("CARGO_PKG_VERSION")))
             .build()
             .into();
         Client { http, server: server.trim_end_matches('/').to_string(), token }

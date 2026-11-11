@@ -175,7 +175,7 @@ export function formatPageSelection(pages: number[], pageCount: number) {
 }
 
 // The Windows print agent, published by agent/release.ps1. It installs itself when run.
-export const AGENT_DOWNLOAD_URL = "/downloads/ScanAndPrintAgent.exe"
+export const AGENT_DOWNLOAD_URL = "/downloads/Mudron.exe"
 
 /** Formats a number with Bangla digits, e.g. 120 → "১২০". */
 export function formatNumber(value: number) {

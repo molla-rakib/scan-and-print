@@ -12,7 +12,7 @@ export type CashCustomer = { name: string; phone: string }
 /** Which details the shop asks for (set in Settings → পেমেন্ট); shown fields are required. */
 export type CashFields = { name: boolean; phone: boolean }
 
-const STORAGE_KEY = "scan-print:customer"
+const STORAGE_KEY = "mudron:customer"
 
 function savedCustomer(): CashCustomer {
   try {

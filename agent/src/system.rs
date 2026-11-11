@@ -15,18 +15,26 @@ use windows::Win32::UI::WindowsAndMessaging::{MB_ICONERROR, MB_ICONINFORMATION, 
 use windows::core::{HSTRING, PCWSTR, w};
 
 const RUN_KEY: PCWSTR = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Run");
-const RUN_VALUE: PCWSTR = w!("ScanAndPrintAgent");
-const MUTEX_NAME: PCWSTR = w!("Local\\ScanAndPrintAgent");
-const QUIT_EVENT: PCWSTR = w!("Local\\ScanAndPrintAgentQuit");
-const SHOW_EVENT: PCWSTR = w!("Local\\ScanAndPrintAgentShow");
+const RUN_VALUE: PCWSTR = w!("Mudron");
+const MUTEX_NAME: PCWSTR = w!("Local\\Mudron");
+const QUIT_EVENT: PCWSTR = w!("Local\\MudronQuit");
+const SHOW_EVENT: PCWSTR = w!("Local\\MudronShow");
+/// Names used before the rename to Mudron (agent ≤ 1.2.0), so installing over an old agent can retire it.
+const LEGACY_RUN_VALUE: PCWSTR = w!("ScanAndPrintAgent");
+const LEGACY_MUTEX_NAME: PCWSTR = w!("Local\\ScanAndPrintAgent");
+const LEGACY_QUIT_EVENT: PCWSTR = w!("Local\\ScanAndPrintAgentQuit");
 
 /// Holds the named mutex for as long as the process runs.
 pub struct SingleInstance(#[allow(dead_code)] HANDLE);
 
 /// Returns None if another copy of the agent is already running for this Windows user.
 pub fn single_instance() -> Option<SingleInstance> {
+    instance_named(MUTEX_NAME)
+}
+
+fn instance_named(name: PCWSTR) -> Option<SingleInstance> {
     unsafe {
-        let handle = CreateMutexW(None, false, MUTEX_NAME).ok()?;
+        let handle = CreateMutexW(None, false, name).ok()?;
         if GetLastError() == ERROR_ALREADY_EXISTS {
             let _ = CloseHandle(handle);
             None
@@ -38,9 +46,19 @@ pub fn single_instance() -> Option<SingleInstance> {
 
 /// Waits until no copy of the agent is running. Returns false on timeout.
 pub fn wait_for_instance_exit(timeout: Duration) -> bool {
+    wait_for_exit(MUTEX_NAME, timeout)
+}
+
+/// Asks a pre-rename agent (ScanAndPrintAgent ≤ 1.2.0) to quit and waits for it. Returns false on timeout.
+pub fn quit_legacy_instance(timeout: Duration) -> bool {
+    signal(LEGACY_QUIT_EVENT);
+    wait_for_exit(LEGACY_MUTEX_NAME, timeout)
+}
+
+fn wait_for_exit(mutex: PCWSTR, timeout: Duration) -> bool {
     let started = Instant::now();
     loop {
-        if let Some(instance) = single_instance() {
+        if let Some(instance) = instance_named(mutex) {
             unsafe {
                 let _ = CloseHandle(instance.0);
             }
@@ -96,10 +114,23 @@ fn autostart_command_for(exe: &Path) -> String {
 }
 
 fn autostart_value() -> Option<String> {
+    run_value(RUN_VALUE)
+}
+
+/// Removes the pre-rename agent's start-with-Windows entry. Returns whether it was set.
+pub fn remove_legacy_autostart() -> bool {
+    let was_set = run_value(LEGACY_RUN_VALUE).is_some();
+    unsafe {
+        let _ = RegDeleteKeyValueW(HKEY_CURRENT_USER, RUN_KEY, LEGACY_RUN_VALUE);
+    }
+    was_set
+}
+
+fn run_value(name: PCWSTR) -> Option<String> {
     let mut buffer = [0u16; 1024];
     let mut size = (buffer.len() * 2) as u32;
     let result = unsafe {
-        RegGetValueW(HKEY_CURRENT_USER, RUN_KEY, RUN_VALUE, RRF_RT_REG_SZ, None, Some(buffer.as_mut_ptr().cast()), Some(&mut size))
+        RegGetValueW(HKEY_CURRENT_USER, RUN_KEY, name, RRF_RT_REG_SZ, None, Some(buffer.as_mut_ptr().cast()), Some(&mut size))
     };
     if result != ERROR_SUCCESS {
         return None;

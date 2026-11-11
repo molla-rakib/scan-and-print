@@ -1,4 +1,4 @@
-//! Saved pairing state: `%APPDATA%\ScanAndPrint\agent.json`.
+//! Saved pairing state: `%APPDATA%\Mudron\agent.json`.
 //! The bearer token is encrypted with Windows DPAPI, so it is only readable by the same Windows user.
 
 use std::{fs, io, path::PathBuf};
@@ -30,7 +30,7 @@ pub struct Config {
 
 pub fn data_dir() -> PathBuf {
     let base = std::env::var_os("APPDATA").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."));
-    base.join("ScanAndPrint")
+    base.join("Mudron")
 }
 
 fn config_path() -> PathBuf {

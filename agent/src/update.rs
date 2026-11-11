@@ -2,7 +2,7 @@
 //! before anything is run.
 //!
 //! The server publishes `public/downloads/agent.json` (written by `agent/release.ps1`):
-//! `{ "version": "0.3.0", "url": "/downloads/ScanAndPrintAgent.exe", "sha256": "…" }`
+//! `{ "version": "0.3.0", "url": "/downloads/Mudron.exe", "sha256": "…" }`
 
 use std::{
     fs::{self, File},
@@ -34,7 +34,7 @@ fn http() -> ureq::Agent {
         .timeout_connect(Some(Duration::from_secs(15)))
         .timeout_recv_response(Some(Duration::from_secs(30)))
         .timeout_recv_body(Some(Duration::from_secs(900)))
-        .user_agent(concat!("scan-print-agent/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("mudron-agent/", env!("CARGO_PKG_VERSION")))
         .build()
         .into()
 }
@@ -98,7 +98,7 @@ pub fn check_and_download(server: &str) -> Result<Option<PathBuf>, String> {
         return Ok(None);
     }
     log(&format!("Update {} available (running {VERSION}), downloading", manifest.version));
-    let dir = std::env::temp_dir().join("ScanAndPrint-update");
+    let dir = std::env::temp_dir().join("Mudron-update");
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let dest = dir.join(install::EXE_NAME);
     download_verified(&absolute(server, &manifest.url), &dest, &manifest.sha256)?;

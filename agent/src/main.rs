@@ -29,14 +29,14 @@ use api::{ApiError, Client};
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Production server, used by release builds.
-const PRODUCTION_SERVER: &str = "https://scan-and-print.vercel.app";
+const PRODUCTION_SERVER: &str = "https://mudron.org";
 
-/// Server used when pairing: `SCAN_PRINT_SERVER` at runtime, else one baked in at build time, else the
+/// Server used when pairing: `MUDRON_SERVER` at runtime, else one baked in at build time, else the
 /// production site (release) or localhost (debug). After pairing, the saved connection's server is used.
 fn default_server() -> String {
-    std::env::var("SCAN_PRINT_SERVER")
+    std::env::var("MUDRON_SERVER")
         .ok()
-        .or_else(|| option_env!("SCAN_PRINT_SERVER").map(str::to_string))
+        .or_else(|| option_env!("MUDRON_SERVER").map(str::to_string))
         .unwrap_or_else(|| if cfg!(debug_assertions) { "http://localhost:3000" } else { PRODUCTION_SERVER }.to_string())
         .trim_end_matches('/')
         .to_string()
@@ -46,25 +46,25 @@ const USAGE: &str = "\
 Mudron agent
 
 Usage:
-  scan-print-agent                                Tray app (what starts with Windows)
-  scan-print-agent pair <CODE> [--server <URL>]   Connect this PC to a shop (code from Dashboard -> Devices)
-  scan-print-agent run [--dry-run] [--include-virtual]
-                                                  Console mode: wait for jobs and print them
-  scan-print-agent printers                       List the printers Windows has installed
-  scan-print-agent status                         Show which shop this PC is connected to
-  scan-print-agent autostart on|off               Start the tray app when this Windows user logs in
-  scan-print-agent unpair                         Forget the saved connection
-  scan-print-agent install                        Install to %LOCALAPPDATA%\\Programs\\ScanAndPrint and start
-  scan-print-agent uninstall                      Remove the agent, its shortcuts and saved connection
+  mudron                                Tray app (what starts with Windows)
+  mudron pair <CODE> [--server <URL>]   Connect this PC to a shop (code from Dashboard -> Devices)
+  mudron run [--dry-run] [--include-virtual]
+                                        Console mode: wait for jobs and print them
+  mudron printers                       List the printers Windows has installed
+  mudron status                         Show which shop this PC is connected to
+  mudron autostart on|off               Start the tray app when this Windows user logs in
+  mudron unpair                         Forget the saved connection
+  mudron install                        Install to %LOCALAPPDATA%\\Programs\\Mudron and start
+  mudron uninstall                      Remove the agent, its shortcuts and saved connection
 
 Options:
-  --server <URL>       Server address (default: SCAN_PRINT_SERVER, else the built-in one)
+  --server <URL>       Server address (default: MUDRON_SERVER, else the built-in one)
   --dry-run            Download jobs but do not print them (for testing without a printer)
   --include-virtual    Also offer fax / print-to-file printers (for testing)
 
 Environment:
-  SCAN_PRINT_SERVER    Server address used for pairing
-  SCAN_PRINT_SUMATRA   Path to SumatraPDF.exe if it is not next to the agent";
+  MUDRON_SERVER        Server address used for pairing
+  MUDRON_SUMATRA       Path to SumatraPDF.exe if it is not next to the agent";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -133,14 +133,14 @@ fn cli(args: &[String]) -> ExitCode {
         return ExitCode::SUCCESS;
     }
     if flag("--version") {
-        println!("scan-print-agent {VERSION}");
+        println!("mudron {VERSION}");
         return ExitCode::SUCCESS;
     }
 
     match positional.first().copied() {
         Some("pair") => {
             let Some(code) = positional.get(1) else {
-                eprintln!("Missing pairing code. Usage: scan-print-agent pair <CODE>");
+                eprintln!("Missing pairing code. Usage: mudron pair <CODE>");
                 return ExitCode::from(2);
             };
             let server = args
@@ -210,7 +210,7 @@ fn run_console(dry_run: bool, include_virtual: bool) -> ExitCode {
     let cfg = match config::load() {
         Ok(Some(cfg)) => cfg,
         Ok(None) => {
-            eprintln!("This PC is not paired yet. Run: scan-print-agent pair <CODE>");
+            eprintln!("This PC is not paired yet. Run: mudron pair <CODE>");
             return ExitCode::from(2);
         }
         Err(e) => {

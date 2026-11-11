@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-**মুদ্রণ (Mudron).** The brand is "মুদ্রণ" in the Bangla UI and "Mudron" where Windows shows English (agent shortcuts, installed-apps entry, message boxes). The site logo is `public/images/logo.svg` (printing press + name + tagline), shown by `components/logo.tsx`. The press alone (`public/images/logo-small.svg`) is the favicon artwork and the animated landing hero (`components/printing-press.tsx`). The Windows agent keeps its small tile icon (`agent/ui/logo.svg`, `agent/src/icon.rs`). Internal identifiers keep the old name on purpose: the repo, `ScanAndPrintAgent.exe`, the agent's install folder, registry keys and mutexes, and the `scan-and-print.vercel.app` domain; renaming them would break updates of installed agents.
+**মুদ্রণ (Mudron).** The brand is "মুদ্রণ" in the Bangla UI and "Mudron" where Windows shows English (agent shortcuts, installed-apps entry, message boxes). The site logo is `public/images/logo.svg` (printing press + name + tagline), shown by `components/logo.tsx`. The press alone (`public/images/logo-small.svg`) is the favicon artwork and the animated landing hero (`components/printing-press.tsx`). The Windows agent keeps its small tile icon (`agent/ui/logo.svg`, `agent/src/icon.rs`). The production site is `https://mudron.org` (self-hosted on a VPS behind Caddy). Since agent 1.3.0 everything is named Mudron, including `Mudron.exe`, the install folder, registry keys and mutexes; agents up to 1.2.0 used "ScanAndPrint" names and `scan-and-print.vercel.app`, and `retire_legacy_install()` in `agent/src/install.rs` moves such an install over when it updates.
 
 Automatic printing for print/photocopy shops in Bangladesh. A customer scans a shop's QR code, uploads a PDF, picks black & white or color and copies, pays with bKash (or cash at the counter), and the job prints automatically on a printer in the shop.
 
@@ -82,9 +82,9 @@ Agents authenticate with a bearer token; only its SHA-256 hash is stored.
 - `jobs/claim` returns the next job, including `pages` (SumatraPDF ranges like `"1-3,5"`, or null), `duplex` and `paperSize`; the agent downloads it from `jobs/[id]/file` with its bearer token.
 - `jobs/[id]` reports the result.
 
-The real Windows agent is a Rust tray app in `agent/` (see `agent/README.md`; tao + wry + tray-icon, popups are `agent/ui/*.html`). The release exe installs itself per user and runs as a tray app; debug builds (`cargo build`) run in place against `http://localhost:3000`, and `scan-print-agent pair <CODE>` / `run [--dry-run --include-virtual]` are console commands for testing. It prints through the SumatraPDF CLI (downloaded from `public/downloads/` on first start, hash pinned in `agent/src/update.rs`). `scripts/dev-agent.mjs` speaks the same protocol for testing.
+The real Windows agent is a Rust tray app in `agent/` (see `agent/README.md`; tao + wry + tray-icon, popups are `agent/ui/*.html`). The release exe installs itself per user and runs as a tray app; debug builds (`cargo build`) run in place against `http://localhost:3000`, and `mudron pair <CODE>` / `run [--dry-run --include-virtual]` are console commands for testing. It prints through the SumatraPDF CLI (downloaded from `public/downloads/` on first start, hash pinned in `agent/src/update.rs`). `scripts/dev-agent.mjs` speaks the same protocol for testing.
 
-**Releasing the agent:** bump `version` in `agent/Cargo.toml`, run `powershell -ExecutionPolicy Bypass -File agent/release.ps1` (builds for `https://scan-and-print.vercel.app` and writes `public/downloads/ScanAndPrintAgent.exe` + `agent.json`), then commit and deploy. Installed agents update themselves within ~6 hours.
+**Releasing the agent:** bump `version` in `agent/Cargo.toml`, run `powershell -ExecutionPolicy Bypass -File agent/release.ps1` (builds for `https://mudron.org` and writes `public/downloads/Mudron.exe` + `agent.json`), then commit and deploy. Installed agents update themselves within ~6 hours.
 
 ### Auth and session
 

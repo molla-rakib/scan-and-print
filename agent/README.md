@@ -7,10 +7,10 @@ Windows 11 and updated Windows 10).
 
 ## For the shop owner
 
-1. Dashboard → ডিভাইস → **এজেন্ট ডাউনলোড** (`/downloads/ScanAndPrintAgent.exe`).
+1. Dashboard → ডিভাইস → **এজেন্ট ডাউনলোড** (`/downloads/Mudron.exe`).
 2. Run it. Until the exe is code-signed, Windows SmartScreen warns: **More info → Run anyway**.
    It installs itself for the current Windows user (no admin prompt) to
-   `%LOCALAPPDATA%\Programs\ScanAndPrint`, adds Start Menu + desktop shortcuts and an entry in
+   `%LOCALAPPDATA%\Programs\Mudron`, adds Start Menu + desktop shortcuts and an entry in
    Settings → Apps, then starts.
 3. A window asks for the pairing code (Dashboard → ডিভাইস → কম্পিউটার যুক্ত করুন). After pairing the
    agent starts with Windows and downloads SumatraPDF (20 MB, once).
@@ -19,7 +19,12 @@ Windows 11 and updated Windows 10).
 From then on it lives in the tray: a blue icon with a green (online), red (offline / not paired) or
 orange (print software missing) dot. Clicking it, or the desktop shortcut, opens a status window: online state,
 shop, printers, last job.
-Uninstall from Settings → Apps → "Mudron Agent". The exe file, install folder (`%LOCALAPPDATA%\Programs\ScanAndPrint`), registry keys and download URL keep their pre-rename names so installed agents keep updating.
+Uninstall from Settings → Apps → "Mudron Agent".
+
+Agents up to 1.2.0 were named "ScanAndPrint" (`ScanAndPrintAgent.exe`, `%LOCALAPPDATA%\Programs\ScanAndPrint`,
+`%APPDATA%\ScanAndPrint`, server `https://scan-and-print.vercel.app`). When 1.3.0+ installs over one, it
+stops the old agent, takes over its saved connection (switching the server to `https://mudron.org`) and
+removes the old folders, shortcuts and registry entries (`retire_legacy_install` in `src/install.rs`).
 
 ## Releasing a new version
 
@@ -32,7 +37,7 @@ powershell -ExecutionPolicy Bypass -File agent/release.ps1   # builds, copies to
 Installed agents check `/downloads/agent.json` 2 minutes after start and then every 6 hours. A newer
 version is downloaded, its SHA-256 checked, the current job finished, and the new exe installs itself
 and restarts. `release.ps1 -Server <url>` builds for another server (the default is
-`https://scan-and-print.vercel.app`).
+`https://mudron.org`).
 
 ## Development
 
@@ -45,21 +50,21 @@ cargo test
 Debug builds keep a console. Useful commands (release builds print to the terminal they're started from):
 
 ```bash
-scan-print-agent                     # tray app
-scan-print-agent pair <CODE> [--server http://localhost:3000]
-scan-print-agent run [--dry-run] [--include-virtual]   # console mode instead of the tray
-scan-print-agent printers            # what Windows has installed, with color/duplex/state
-scan-print-agent status | unpair
-scan-print-agent autostart on|off
-scan-print-agent install | uninstall
-scan-print-agent ui-preview pair|pair-error|pair-done|status|status-setup|status-offline   # debug builds: open a window with sample data
+mudron                     # tray app
+mudron pair <CODE> [--server http://localhost:3000]
+mudron run [--dry-run] [--include-virtual]   # console mode instead of the tray
+mudron printers            # what Windows has installed, with color/duplex/state
+mudron status | unpair
+mudron autostart on|off
+mudron install | uninstall
+mudron ui-preview pair|pair-error|pair-done|status|status-setup|status-offline   # debug builds: open a window with sample data
 ```
 
 The windows are HTML in `ui/` (`style.css` is shared, `logo.svg` is inserted at `<!--LOGO-->`); use
 `ui-preview` to check a change without pairing or placing orders.
 
 `--include-virtual` also offers fax and "print to file" printers (such as Microsoft Print to PDF) to the
-server. Use it with `--dry-run` to test on a PC without a real printer. `SCAN_PRINT_SERVER` overrides the
+server. Use it with `--dry-run` to test on a PC without a real printer. `MUDRON_SERVER` overrides the
 server used for pairing (also for the installed app, if set when the installer runs).
 
 ## How it works
@@ -75,11 +80,11 @@ server used for pairing (also for the installed app, if set when the installer r
 | `src/install.rs` | Per-user install / update / uninstall: copy, shortcuts, Installed-apps entry |
 | `src/update.rs` | `agent.json` check, verified downloads (agent updates and SumatraPDF) |
 | `src/system.rs` | Start with Windows (HKCU `Run`), single instance, quit/show signals between copies, message boxes |
-| `src/config.rs` | Saved connection in `%APPDATA%\ScanAndPrint\agent.json`; the token is encrypted with Windows DPAPI |
-| `src/log.rs` | Log to the console and `%APPDATA%\ScanAndPrint\agent.log` (tray menu → লগ ফাইল দেখুন) |
+| `src/config.rs` | Saved connection in `%APPDATA%\Mudron\agent.json`; the token is encrypted with Windows DPAPI |
+| `src/log.rs` | Log to the console and `%APPDATA%\Mudron\agent.log` (tray menu → লগ ফাইল দেখুন) |
 | `src/icon.rs`, `build.rs` | The icon, drawn in code; `build.rs` embeds it and version info in the exe |
 
-- **Privacy.** PDFs are written to `%TEMP%\ScanAndPrint` and deleted right after printing. Leftovers from
+- **Privacy.** PDFs are written to `%TEMP%\Mudron` and deleted right after printing. Leftovers from
   a crash are deleted at startup. Uninstall deletes the saved connection and logs.
 - **Errors reported to the server and shown in the UI are in Bangla.** Log output is English.
 - **"Completed" means the job reached the Windows print spooler**, not that paper came out.
@@ -91,5 +96,5 @@ Printing goes through [SumatraPDF](https://www.sumatrapdfreader.org/) 3.6.1 (GPL
 separate program; source: https://github.com/sumatrapdfreader/sumatrapdf). The website serves it from
 `public/downloads/SumatraPDF-3.6.1-64.exe`; the agent downloads it next to itself on first start and checks
 the SHA-256 pinned in `src/update.rs`. To upgrade it, replace the file, update `SUMATRA_PATH` and
-`SUMATRA_SHA256`, and release a new agent version. It is also found via `SCAN_PRINT_SUMATRA`,
+`SUMATRA_SHA256`, and release a new agent version. It is also found via `MUDRON_SUMATRA`,
 `%LOCALAPPDATA%\SumatraPDF` or `Program Files\SumatraPDF`.

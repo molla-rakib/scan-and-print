@@ -1,5 +1,5 @@
 //! Per-user install, update and uninstall. The downloaded exe is its own installer: run from anywhere
-//! else, it copies itself to `%LOCALAPPDATA%\Programs\ScanAndPrint`, adds shortcuts and an entry in
+//! else, it copies itself to `%LOCALAPPDATA%\Programs\Mudron`, adds shortcuts and an entry in
 //! Windows "Installed apps", and starts the installed copy. No admin rights are needed, which also
 //! lets auto-update replace the exe silently.
 
@@ -20,17 +20,57 @@ use windows::core::{HSTRING, Interface, PCWSTR, w};
 
 use crate::{VERSION, config, icon, log::log, system};
 
-pub const EXE_NAME: &str = "ScanAndPrintAgent.exe";
+pub const EXE_NAME: &str = "Mudron.exe";
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const APP_NAME: &str = "Mudron Agent";
-/// Start Menu / desktop shortcut name. Versions before the Mudron rename used LEGACY_SHORTCUT.
 const SHORTCUT: &str = "Mudron.lnk";
+const UNINSTALL_KEY: PCWSTR = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Mudron");
+
+/// What agents up to 1.2.0 used, before everything was renamed to Mudron. Installing over such an agent
+/// moves its saved connection across and removes the rest (`retire_legacy_install`).
 const LEGACY_SHORTCUT: &str = "Scan & Print.lnk";
-const UNINSTALL_KEY: PCWSTR = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ScanAndPrintAgent");
+const LEGACY_FOLDER: &str = "ScanAndPrint";
+const LEGACY_UNINSTALL_KEY: PCWSTR = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ScanAndPrintAgent");
+const LEGACY_SERVER: &str = "https://scan-and-print.vercel.app";
+
+fn programs_dir() -> PathBuf {
+    let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
+    base.join("Programs")
+}
 
 pub fn install_dir() -> PathBuf {
-    let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
-    base.join("Programs").join("ScanAndPrint")
+    programs_dir().join("Mudron")
+}
+
+/// Stops a pre-rename agent and takes over its saved connection (pointed at the new server if it used the
+/// old one), then removes its install folder, data, uninstall entry and start-with-Windows entry.
+/// Returns whether the old agent started with Windows.
+fn retire_legacy_install() -> Result<bool, String> {
+    if !system::quit_legacy_instance(Duration::from_secs(60)) {
+        return Err("the old ScanAndPrint agent did not close".into());
+    }
+    let legacy_data = config::data_dir().with_file_name(LEGACY_FOLDER);
+    let legacy_config = legacy_data.join("agent.json");
+    if legacy_config.exists() && !config::data_dir().join("agent.json").exists() {
+        let _ = fs::create_dir_all(config::data_dir());
+        match fs::copy(&legacy_config, config::data_dir().join("agent.json")) {
+            Ok(_) => log("Moved the saved connection from the old ScanAndPrint agent"),
+            Err(e) => log(&format!("Could not move the old saved connection: {e}")),
+        }
+        if let Ok(Some(mut saved)) = config::load()
+            && saved.server.trim_end_matches('/') == LEGACY_SERVER
+        {
+            saved.server = crate::default_server();
+            let _ = config::save(&saved);
+        }
+    }
+    let _ = fs::remove_dir_all(&legacy_data);
+    let _ = fs::remove_dir_all(std::env::temp_dir().join(LEGACY_FOLDER));
+    let _ = fs::remove_dir_all(programs_dir().join(LEGACY_FOLDER));
+    unsafe {
+        let _ = RegDeleteTreeW(HKEY_CURRENT_USER, LEGACY_UNINSTALL_KEY);
+    }
+    Ok(system::remove_legacy_autostart())
 }
 
 pub fn installed_exe() -> PathBuf {
@@ -63,6 +103,7 @@ pub fn install() -> Result<(), String> {
     if !system::wait_for_instance_exit(Duration::from_secs(60)) {
         return Err("the running agent did not close".into());
     }
+    let legacy_autostart = retire_legacy_install()?;
 
     let dir = install_dir();
     fs::create_dir_all(&dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
@@ -80,7 +121,7 @@ pub fn install() -> Result<(), String> {
         }
     }
     // Keep "start with Windows" pointing at the installed copy if it was on.
-    if system::autostart_registered() {
+    if legacy_autostart || system::autostart_registered() {
         let _ = system::set_autostart_for(&installed_exe(), true);
     }
 
@@ -107,7 +148,7 @@ pub fn uninstall() -> Result<(), String> {
     }
     let _ = config::delete();
     let _ = fs::remove_dir_all(config::data_dir());
-    let _ = fs::remove_dir_all(std::env::temp_dir().join("ScanAndPrint"));
+    let _ = fs::remove_dir_all(std::env::temp_dir().join("Mudron"));
 
     // This exe may be the installed one and cannot delete itself while running (it still shows the
     // "removed" message), so a hidden PowerShell waits for this process to exit, then deletes the folder.
