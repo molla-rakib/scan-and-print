@@ -40,7 +40,7 @@ For a new agent release, run `agent/release.ps1` locally first and commit `publi
 
 ```bash
 # Logs
-docker logs -f mudron-mudron-1
+docker logs -f mudron
 cd /var/www/infra && docker compose logs -f caddy
 
 # After editing the Caddyfile

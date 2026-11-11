@@ -15,6 +15,8 @@ services:
         # Baked into the prerendered pages (see Dockerfile); rebuild after changing it.
         GOOGLE_ANALYTICS_ID: ${GOOGLE_ANALYTICS_ID:-}
     image: mudron-app
+    # Fixed name instead of Compose's "<project>-<service>-1" (mudron-mudron-1).
+    container_name: mudron
     restart: unless-stopped
     env_file: .env
     networks: [infra]
