@@ -97,10 +97,10 @@ async function Shops() {
               <TableHeader>
                 <TableRow>
                   <TableHead>দোকান</TableHead>
-                  <TableHead className="hidden lg:table-cell">মালিক</TableHead>
-                  <TableHead className="hidden sm:table-cell">ডিভাইস</TableHead>
-                  <TableHead className="hidden xl:table-cell">৩০ দিনের অর্ডার</TableHead>
-                  <TableHead className="hidden md:table-cell">মেয়াদ</TableHead>
+                  <TableHead>মালিক</TableHead>
+                  <TableHead>ডিভাইস</TableHead>
+                  <TableHead>৩০ দিনের অর্ডার</TableHead>
+                  <TableHead>মেয়াদ</TableHead>
                   <TableHead>অবস্থা</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
@@ -113,14 +113,13 @@ async function Shops() {
                       <TableCell>
                         <div className="font-medium">{shop.name}</div>
                         <div className="text-xs text-muted-foreground">/s/{shop.slug}</div>
-                        <div className="max-w-48 truncate text-xs text-muted-foreground lg:hidden">{ownerEmail(shop.ownerId)}</div>
                       </TableCell>
-                      <TableCell className="hidden text-muted-foreground lg:table-cell">{ownerEmail(shop.ownerId)}</TableCell>
-                      <TableCell className="hidden tabular-nums sm:table-cell">
+                      <TableCell className="text-muted-foreground">{ownerEmail(shop.ownerId)}</TableCell>
+                      <TableCell className="tabular-nums">
                         {formatNumber(countBy(enabledDevices, shop._id))} / {formatNumber(shop.deviceLimit)}
                       </TableCell>
-                      <TableCell className="hidden tabular-nums xl:table-cell">{formatNumber(countBy(monthlyJobs, shop._id))}</TableCell>
-                      <TableCell className={expired ? "hidden text-destructive md:table-cell" : "hidden md:table-cell"}>{formatDate(shop.paidUntil)}</TableCell>
+                      <TableCell className="tabular-nums">{formatNumber(countBy(monthlyJobs, shop._id))}</TableCell>
+                      <TableCell className={expired ? "text-destructive" : undefined}>{formatDate(shop.paidUntil)}</TableCell>
                       <TableCell>
                         {shop.status === "suspended" ? (
                           <Badge variant="destructive">বন্ধ</Badge>
