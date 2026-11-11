@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { getCurrentUser } from "@/lib/auth"
 
-export const metadata: Metadata = { title: "লগইন" }
+export const metadata: Metadata = { title: "লগইন", robots: { index: false } }
 
 const ERRORS: Record<string, string> = {
   cancelled: "লগইন বাতিল করা হয়েছে। আবার চেষ্টা করুন।",

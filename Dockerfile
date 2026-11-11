@@ -14,8 +14,11 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # Env vars are read when used (lib/env.ts); nothing connects to the database during the build.
 # Exception: values used by prerendered pages are baked in now, so they come in as build args.
-ARG GOOGLE_ANALYTICS_ID
-ENV GOOGLE_ANALYTICS_ID=$GOOGLE_ANALYTICS_ID
+#   APP_URL: canonical links, sitemap/robots/llms.txt URLs, social previews
+#   DEVICE_MONTHLY_FEE, TRIAL_DAYS: prices on the home page and llms.txt
+ARG APP_URL GOOGLE_ANALYTICS_ID DEVICE_MONTHLY_FEE TRIAL_DAYS
+ENV APP_URL=$APP_URL GOOGLE_ANALYTICS_ID=$GOOGLE_ANALYTICS_ID \
+    DEVICE_MONTHLY_FEE=$DEVICE_MONTHLY_FEE TRIAL_DAYS=$TRIAL_DAYS
 RUN npm run build
 
 FROM base AS run

@@ -8,7 +8,7 @@ import { requireUser } from "@/lib/auth"
 import { Shop } from "@/lib/models"
 import { OnboardingForm } from "./onboarding-form"
 
-export const metadata: Metadata = { title: "দোকান সেটআপ" }
+export const metadata: Metadata = { title: "দোকান সেটআপ", robots: { index: false } }
 
 export default function OnboardingPage() {
   return (

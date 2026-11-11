@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import {
@@ -28,6 +29,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { formatNumber, formatTaka } from "@/lib/constants";
 import { env } from "@/lib/env";
+import { seo, siteUrl } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 
 const nav = [
@@ -134,12 +136,80 @@ const faqs = [
   },
 ];
 
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
+
+/** schema.org data for search engines and AI agents: who we are, the product with its price, the FAQ. */
+function structuredData(fee: number, trialDays: number) {
+  const url = siteUrl("/");
+  const graph = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": `${url}#organization`,
+        name: seo.nameEn,
+        alternateName: seo.name,
+        url,
+        logo: siteUrl("/images/logo.svg"),
+        areaServed: { "@type": "Country", name: "Bangladesh" },
+      },
+      {
+        "@type": "WebSite",
+        "@id": `${url}#website`,
+        name: `${seo.name} (${seo.nameEn})`,
+        url,
+        inLanguage: "bn",
+        publisher: { "@id": `${url}#organization` },
+      },
+      {
+        "@type": "SoftwareApplication",
+        name: `${seo.nameEn} (${seo.name})`,
+        url,
+        description: seo.descriptionEn,
+        applicationCategory: "BusinessApplication",
+        operatingSystem: "Web, Windows",
+        inLanguage: "bn",
+        publisher: { "@id": `${url}#organization` },
+        offers: {
+          "@type": "Offer",
+          price: fee,
+          priceCurrency: "BDT",
+          description: `${trialDays} days free trial, then ${fee} BDT per printer per month`,
+          priceSpecification: {
+            "@type": "UnitPriceSpecification",
+            price: fee,
+            priceCurrency: "BDT",
+            unitText: "printer per month",
+          },
+        },
+      },
+      {
+        "@type": "FAQPage",
+        inLanguage: "bn",
+        mainEntity: faqs.map((faq) => ({
+          "@type": "Question",
+          name: faq.q,
+          acceptedAnswer: { "@type": "Answer", text: faq.a },
+        })),
+      },
+    ],
+  };
+  // Escape "<" so the JSON cannot close the script tag.
+  return JSON.stringify(graph).replace(/</g, "\\u003c");
+}
+
 export default function HomePage() {
   const fee = env.deviceMonthlyFee;
   const trialDays = env.trialDays;
 
   return (
     <div className="flex flex-1 flex-col bg-background">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: structuredData(fee, trialDays) }}
+      />
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-foreground/10 bg-[oklch(0.985_0.008_85)]/85 backdrop-blur-md">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4 md:px-6">

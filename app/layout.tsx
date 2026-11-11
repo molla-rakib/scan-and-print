@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { Noto_Sans_Bengali } from "next/font/google"
 import { GoogleTagManager } from "@next/third-parties/google"
 import { env } from "@/lib/env"
+import { seo } from "@/lib/seo"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import "./globals.css"
@@ -12,10 +13,25 @@ const notoBengali = Noto_Sans_Bengali({
   subsets: ["bengali", "latin"],
 })
 
+// Built once at build time, so APP_URL comes in as a Docker build arg (docker-compose.prod.yml).
 export const metadata: Metadata = {
-  title: { default: "মুদ্রণ", template: "%s · মুদ্রণ" },
-  applicationName: "মুদ্রণ (Mudron)",
-  description: "QR কোড স্ক্যান করুন, PDF আপলোড করুন, বিকাশে পেমেন্ট করুন — প্রিন্ট হয়ে যাবে স্বয়ংক্রিয়ভাবে।",
+  metadataBase: new URL(env.appUrl),
+  title: { default: seo.title, template: "%s · মুদ্রণ" },
+  applicationName: `${seo.name} (${seo.nameEn})`,
+  description: seo.description,
+  keywords: seo.keywords,
+  category: "business",
+  // No canonical here: it would be inherited by every page. Pages set their own.
+  openGraph: {
+    type: "website",
+    siteName: `${seo.name} (${seo.nameEn})`,
+    title: seo.title,
+    description: seo.description,
+    locale: "bn_BD",
+  },
+  twitter: { card: "summary_large_image", title: seo.title, description: seo.description },
+  robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large" } },
+  formatDetection: { telephone: false },
 }
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
