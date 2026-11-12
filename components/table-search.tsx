@@ -11,7 +11,7 @@ export function TableSearch({ placeholder, prefix = "", className }: { placehold
   const { value, setValue, clear, pending } = useTableSearch(prefix)
 
   return (
-    <div className={cn("relative w-full sm:max-w-xs", className)}>
+    <div className={cn("relative w-full sm:max-w-md", className)}>
       <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         type="search"
@@ -19,7 +19,7 @@ export function TableSearch({ placeholder, prefix = "", className }: { placehold
         onChange={(e) => setValue(e.target.value)}
         placeholder={placeholder}
         aria-label={placeholder}
-        className="h-10 pr-9 pl-9 [&::-webkit-search-cancel-button]:hidden"
+        className="h-10 truncate pr-9 pl-9 placeholder:text-sm [&::-webkit-search-cancel-button]:hidden"
       />
       <span className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center">
         {pending ? (

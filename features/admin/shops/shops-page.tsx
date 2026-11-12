@@ -60,7 +60,7 @@ async function Shops({ searchParams }: { searchParams: SearchParams }) {
             <p className="py-10 text-center text-sm text-muted-foreground">এখনো কোনো দোকান নেই।</p>
           ) : (
             <>
-              <TableSearch placeholder="দোকানের নাম, ফোন, লিংক বা মালিকের ইমেইল" />
+              <TableSearch placeholder="নাম, ফোন, লিংক বা ইমেইল" />
               {rows.length === 0 ? (
                 <p className="py-10 text-center text-sm text-muted-foreground">কোনো দোকান মেলেনি।</p>
               ) : (

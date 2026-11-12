@@ -67,7 +67,7 @@ async function Jobs({ searchParams }: { searchParams: SearchParams }) {
             </Empty>
           ) : (
             <div className="flex flex-col gap-4">
-              <TableSearch placeholder="টোকেন, নাম বা ফোন নম্বর দিয়ে খুঁজুন" />
+              <TableSearch placeholder="টোকেন, নাম বা ফোন নম্বর" />
               {rows.length === 0 ? (
                 <p className="py-10 text-center text-sm text-muted-foreground">কোনো অর্ডার পাওয়া যায়নি।</p>
               ) : (

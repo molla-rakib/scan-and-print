@@ -14,7 +14,7 @@ import { loadPayments } from "./queries"
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 
-const SEARCH_PLACEHOLDER = "দোকানের নাম, TrxID বা পাঠানো নম্বর"
+const SEARCH_PLACEHOLDER = "দোকান, TrxID বা নম্বর"
 
 /** /dashboard/admin/payments: manual payments to approve (`?pq=&ppage=`) and the payment history (`?hq=&hpage=`). */
 export function PaymentsPage({ searchParams }: { searchParams: SearchParams }) {

@@ -30,7 +30,7 @@ export function PaymentHistory({ payments, total, q, page }: { payments: Billing
 
   return (
     <div className="flex flex-col gap-4">
-      <TableSearch placeholder="TrxID বা নম্বর দিয়ে খুঁজুন" />
+      <TableSearch placeholder="TrxID বা পাঠানো নম্বর" />
       {payments.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">কোনো পেমেন্ট পাওয়া যায়নি।</p>
       ) : (
