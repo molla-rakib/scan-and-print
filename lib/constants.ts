@@ -235,4 +235,40 @@ export const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {
 
 /** Months an owner can pay for at once; a month is 30 days. */
 export const BILLING_MONTHS = [1, 3, 6, 12] as const
+
+/** Days before the end date that the dashboard warns (orange), and when owners may pick a new device count. */
+export const RENEW_NOTICE_DAYS = 5
+/** Free days after the end date during which printing still works (red warning). */
+export const GRACE_DAYS = 5
+/** Most devices an owner can pay for at once; more through us. */
+export const MAX_BILLING_DEVICES = 20
+
+export type ShopDiscount = { kind: "percent" | "fixed"; value: number }
+
+/**
+ * Monthly fee for `devices` devices at `deviceFee` each, after the shop's admin-given discount. A fixed
+ * discount is a fixed fee for the whole shop, whatever the device count. Whole taka; never above full price.
+ */
+export function monthlyFeeFor(deviceFee: number, devices: number, discount: ShopDiscount | null) {
+  const base = Math.max(devices, 1) * deviceFee
+  if (!discount) return base
+  const fee = discount.kind === "percent" ? base * (1 - Math.min(discount.value, 100) / 100) : discount.value
+  return Math.max(0, Math.min(base, Math.round(fee)))
+}
+export type BillingMonths = (typeof BILLING_MONTHS)[number]
+
+/** Percent off the subscription when paying several months at once. */
+export const BILLING_MONTH_DISCOUNTS: Record<BillingMonths, number> = { 1: 0, 3: 5, 6: 10, 12: 15 }
+
+/** What the owner pays for `months` months at `monthlyFee` (the shop's fee from `monthlyFee(shop)`), after the plan discount. */
+export function billingAmount(monthlyFee: number, months: number) {
+  const percent = BILLING_MONTH_DISCOUNTS[months as BillingMonths] ?? 0
+  return Math.round(monthlyFee * months * (1 - percent / 100))
+}
 export const DAYS_PER_MONTH = 30
+
+/** Support contact on WhatsApp, shown on the install guide, support page and footer. */
+export const SUPPORT_WHATSAPP = {
+  display: "+880 1521-505130",
+  href: "https://wa.me/8801521505130",
+}

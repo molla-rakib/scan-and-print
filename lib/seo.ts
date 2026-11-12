@@ -37,3 +37,22 @@ export const seo = {
 export function siteUrl(path = "/") {
   return new URL(path, `${env.appUrl}/`).toString()
 }
+
+/** Metadata for a public text page: canonical plus its own link preview (which must name the image again). */
+export function pageMetadata(path: string, title: string, description: string) {
+  return {
+    title,
+    description,
+    alternates: { canonical: path },
+    openGraph: {
+      type: "website" as const,
+      title,
+      description,
+      url: path,
+      locale: "bn_BD",
+      siteName: "মুদ্রণ (Mudron)",
+      images: [{ url: "/opengraph-image", width: 1200, height: 630 }],
+    },
+    twitter: { card: "summary_large_image" as const, title, description, images: ["/opengraph-image"] },
+  }
+}

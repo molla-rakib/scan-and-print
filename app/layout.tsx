@@ -1,8 +1,10 @@
 import type { Metadata } from "next"
+import { Suspense } from "react"
 import { Noto_Sans_Bengali } from "next/font/google"
 import { GoogleTagManager } from "@next/third-parties/google"
 import { env } from "@/lib/env"
 import { seo } from "@/lib/seo"
+import { NavigationProgress } from "@/components/navigation-progress"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import "./globals.css"
@@ -42,6 +44,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="bn" className={`${notoBengali.variable} h-full antialiased`}>
       {gtmId && <GoogleTagManager gtmId={gtmId} />}
       <body className="flex min-h-full flex-col">
+        {/* Reads the URL, so it sits in its own boundary to keep the rest of the layout static. */}
+        <Suspense>
+          <NavigationProgress />
+        </Suspense>
         <TooltipProvider>{children}</TooltipProvider>
         <Toaster position="top-center" richColors />
       </body>

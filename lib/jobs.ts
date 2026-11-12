@@ -14,6 +14,8 @@ import {
   type JobStatus,
   type PaperPrices,
   type PaperSize,
+  GRACE_DAYS,
+  RENEW_NOTICE_DAYS,
 } from "@/lib/constants"
 import { Agent, Device, Order, PrintJob, Shop, type DeviceDoc, type OrderDoc, type PrintJobDoc, type ShopDoc } from "@/lib/models"
 import { deleteFile } from "@/lib/storage"
@@ -34,18 +36,46 @@ export function startOfMonthInDhaka() {
   return new Date(Date.UTC(dhaka.getUTCFullYear(), dhaka.getUTCMonth(), 1) - 6 * 60 * 60 * 1000)
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** Whether the paid period (or trial) has ended. Printing still works for GRACE_DAYS after this. */
 export function subscriptionExpired(shop: ShopDoc) {
   return shop.paidUntil.getTime() <= Date.now()
 }
 
-/** Whether the subscription ends within 5 days (or already ended), so the owner should renew. */
+/** Whether the subscription ends within RENEW_NOTICE_DAYS (or already ended), so the owner should renew. */
 export function expiresSoon(shop: ShopDoc) {
-  return shop.paidUntil.getTime() - Date.now() < 5 * 24 * 60 * 60 * 1000
+  return shop.paidUntil.getTime() - Date.now() < RENEW_NOTICE_DAYS * DAY_MS
 }
 
-/** Whether customers can place orders at this shop right now. */
+/** Whole days until the paid period (or trial) ends, rounded up; 0 once it has ended. */
+export function daysLeft(shop: ShopDoc) {
+  return Math.max(0, Math.ceil((shop.paidUntil.getTime() - Date.now()) / DAY_MS))
+}
+
+/** When printing stops: the end date plus the free grace days. */
+export function serviceEndsAt(shop: ShopDoc) {
+  return new Date(shop.paidUntil.getTime() + GRACE_DAYS * DAY_MS)
+}
+
+/** Whether customers can place orders at this shop right now (paid, or within the grace days). */
 export function shopIsOpen(shop: ShopDoc) {
-  return shop.status === "active" && !subscriptionExpired(shop)
+  return shop.status === "active" && serviceEndsAt(shop).getTime() > Date.now()
+}
+
+/**
+ * The dashboard's subscription banner: "ending" (orange) in the last RENEW_NOTICE_DAYS, "grace" (red) during
+ * the free days after the end date, "stopped" (red) once printing has stopped. `days` is whole days left.
+ */
+export function subscriptionNotice(shop: ShopDoc): { kind: "ending" | "grace" | "stopped"; days: number } | null {
+  if (shop.status !== "active") return null
+  const now = Date.now()
+  const end = shop.paidUntil.getTime()
+  const stop = end + GRACE_DAYS * DAY_MS
+  if (now >= stop) return { kind: "stopped", days: 0 }
+  if (now >= end) return { kind: "grace", days: Math.ceil((stop - now) / DAY_MS) }
+  if (end - now <= RENEW_NOTICE_DAYS * DAY_MS) return { kind: "ending", days: Math.ceil((end - now) / DAY_MS) }
+  return null
 }
 
 export function paymentOptions(shop: ShopDoc) {
