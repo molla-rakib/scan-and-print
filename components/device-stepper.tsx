@@ -41,7 +41,9 @@ export function DeviceStepper({
       >
         <PlusIcon />
       </Button>
-      <span className="text-sm text-muted-foreground">× {formatTaka(deviceFee)} / মাস</span>
+      <span className="text-sm text-muted-foreground">
+        × {formatTaka(deviceFee)} = <span className="font-semibold text-foreground tabular-nums">{formatTaka(deviceFee * value)}</span> / মাস
+      </span>
     </div>
   )
 }

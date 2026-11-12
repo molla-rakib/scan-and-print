@@ -3,7 +3,7 @@ import { redirect } from "next/navigation"
 import { Logo } from "@/components/logo"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { getCurrentUser } from "@/lib/auth"
+import { getCurrentUser, homePathFor } from "@/lib/auth"
 import { GoogleIcon } from "./components/google-icon"
 import { LoginError } from "./components/login-error"
 
@@ -49,6 +49,6 @@ export function LoginPage({ searchParams }: Props) {
 /** Already signed in: skip the login screen. */
 async function RedirectIfSignedIn() {
   const user = await getCurrentUser()
-  if (user) redirect(user.isAdmin ? "/dashboard/admin" : "/dashboard")
+  if (user) redirect(await homePathFor(user))
   return null
 }

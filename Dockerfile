@@ -15,10 +15,11 @@ COPY . .
 # Env vars are read when used (lib/env.ts); nothing connects to the database during the build.
 # Exception: values used by prerendered pages are baked in now, so they come in as build args.
 #   APP_URL: canonical links, sitemap/robots/llms.txt URLs, social previews
-#   DEVICE_MONTHLY_FEE, TRIAL_DAYS: prices on the home page and llms.txt
-ARG APP_URL GOOGLE_ANALYTICS_ID DEVICE_MONTHLY_FEE TRIAL_DAYS
+#   DEVICE_MONTHLY_FEE, TRIAL_DAYS: prices on the home page, onboarding and llms.txt
+#   TRIAL_DEVICE_LIMIT: device count pre-selected on onboarding
+ARG APP_URL GOOGLE_ANALYTICS_ID DEVICE_MONTHLY_FEE TRIAL_DAYS TRIAL_DEVICE_LIMIT
 ENV APP_URL=$APP_URL GOOGLE_ANALYTICS_ID=$GOOGLE_ANALYTICS_ID \
-    DEVICE_MONTHLY_FEE=$DEVICE_MONTHLY_FEE TRIAL_DAYS=$TRIAL_DAYS
+    DEVICE_MONTHLY_FEE=$DEVICE_MONTHLY_FEE TRIAL_DAYS=$TRIAL_DAYS TRIAL_DEVICE_LIMIT=$TRIAL_DEVICE_LIMIT
 RUN npm run build
 
 FROM base AS run

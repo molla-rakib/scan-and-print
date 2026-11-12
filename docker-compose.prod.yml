@@ -17,6 +17,7 @@ services:
         GOOGLE_ANALYTICS_ID: ${GOOGLE_ANALYTICS_ID:-}
         DEVICE_MONTHLY_FEE: ${DEVICE_MONTHLY_FEE:-}
         TRIAL_DAYS: ${TRIAL_DAYS:-}
+        TRIAL_DEVICE_LIMIT: ${TRIAL_DEVICE_LIMIT:-}
     image: mudron-app
     # Fixed name instead of Compose's "<project>-<service>-1" (mudron-mudron-1).
     container_name: mudron

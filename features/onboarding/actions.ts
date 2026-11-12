@@ -1,5 +1,6 @@
 "use server"
 
+import { refresh } from "next/cache"
 import { z } from "zod"
 import { fail, type ActionResult } from "@/lib/action-result"
 import { requireUser } from "@/lib/auth"
@@ -19,7 +20,10 @@ export async function createShop(input: z.input<typeof newShopSchema>): Promise<
 
   await connectDb()
   // The client navigates to the dashboard on success (a redirect here would surface as an error in useAction).
-  if (await Shop.exists({ ownerId: user.id })) return { ok: true }
+  if (await Shop.exists({ ownerId: user.id })) {
+    refresh()
+    return { ok: true }
+  }
   if (await slugTaken(parsed.data.slug)) return fail("এই লিংকটি আগেই নেওয়া হয়েছে।")
 
   const { devices, ...profile } = parsed.data
@@ -29,5 +33,7 @@ export async function createShop(input: z.input<typeof newShopSchema>): Promise<
     deviceLimit: devices,
     paidUntil: new Date(Date.now() + env.trialDays * 24 * 60 * 60 * 1000),
   })
+  // Pages the browser cached while there was no shop (they redirect to /onboarding) must not be reused.
+  refresh()
   return { ok: true }
 }

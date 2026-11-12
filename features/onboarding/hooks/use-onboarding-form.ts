@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
+import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { MAX_BILLING_DEVICES } from "@/lib/constants"
@@ -21,9 +21,6 @@ export function useOnboardingForm(defaultDevices: number) {
   const [devices, setDevices] = useState(Math.min(Math.max(defaultDevices, 1), MAX_BILLING_DEVICES))
   const [created, setCreated] = useState(false)
   const [pending, startTransition] = useTransition()
-
-  // Load the dashboard in the background while the owner fills in the form.
-  useEffect(() => router.prefetch("/dashboard"), [router])
 
   function setName(value: string) {
     setNameState(value)

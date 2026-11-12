@@ -119,7 +119,7 @@ The real Windows agent is a Rust tray app in `agent/` (see `agent/README.md`; ta
 
 `https://mudron.org` runs on a VPS in Docker (`Dockerfile`, Next standalone output, `docker-compose.prod.yml`), behind a Caddy and a MongoDB 8 shared with another site (`deploy/infra`). How to deploy, back up and read logs: `deploy/README.md`. Vercel and MongoDB Atlas were the old production; they are no longer used once agents are on 1.3.0.
 
-**Env read by prerendered pages is baked in at build time** (`APP_URL`, `GOOGLE_ANALYTICS_ID`, `DEVICE_MONTHLY_FEE`, `TRIAL_DAYS`), so they are Docker build args in `docker-compose.prod.yml`; add any new one there too, and rebuild after changing it.
+**Env read by prerendered pages is baked in at build time** (`APP_URL`, `GOOGLE_ANALYTICS_ID`, `DEVICE_MONTHLY_FEE`, `TRIAL_DAYS`, `TRIAL_DEVICE_LIMIT`), so they are Docker build args in `docker-compose.prod.yml`; add any new one there too, and rebuild after changing it.
 
 **SEO.** Site texts and keywords are in `lib/seo.ts`; `app/robots.ts`, `app/sitemap.ts`, `app/llms.txt/route.ts`, `app/manifest.ts`, `app/opengraph-image.tsx`, JSON-LD in `app/page.tsx`. New public pages need a canonical (`alternates.canonical`); signed-in pages get `robots: { index: false }` and a `Disallow` in robots.ts. A page that sets its own `openGraph` must list the preview image again.
 

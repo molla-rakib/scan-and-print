@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { LayoutDashboardIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { getCurrentUser } from "@/lib/auth"
+import { getCurrentUser, homePathFor } from "@/lib/auth"
 import { MobileNav } from "@/components/mobile-nav"
 
 type NavItem = { href: string; label: string }
@@ -31,5 +31,5 @@ export function HeaderActions({ nav, dashboardHref }: { nav: NavItem[]; dashboar
 
 export async function SignedInHeaderActions({ nav }: { nav: NavItem[] }) {
   const user = await getCurrentUser()
-  return <HeaderActions nav={nav} dashboardHref={user ? (user.isAdmin ? "/dashboard/admin" : "/dashboard") : undefined} />
+  return <HeaderActions nav={nav} dashboardHref={user ? await homePathFor(user) : undefined} />
 }

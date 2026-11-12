@@ -1,7 +1,6 @@
 "use client"
 
 import { DeviceStepper } from "@/components/device-stepper"
-import { PlanPricing } from "@/components/plan-pricing"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -58,9 +57,8 @@ export function OnboardingForm({
             <FieldLegend variant="label">কয়টি প্রিন্টার বা ফটোকপি মেশিন যুক্ত করবেন?</FieldLegend>
             <DeviceStepper value={fields.devices} onChange={setDevices} deviceFee={deviceFee} disabled={busy} />
             <div className="rounded-lg bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-400">
-              প্রথম {formatNumber(trialDays)} দিন সম্পূর্ণ ফ্রি। এরপর যে প্ল্যান নেবেন:
+              প্রথম {formatNumber(trialDays)} দিন সম্পূর্ণ ফ্রি
             </div>
-            <PlanPricing deviceFee={deviceFee} devices={fields.devices} />
             <FieldDescription>ফ্রি ট্রায়াল শেষ হওয়ার আগে পেমেন্টের সময় ডিভাইসের সংখ্যা আবার বদলাতে পারবেন।</FieldDescription>
           </FieldSet>
           <Button type="submit" size="lg" disabled={busy}>
