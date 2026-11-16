@@ -1,14 +1,5 @@
-import { SettingsIcon } from "lucide-react"
-import { PageHeader } from "@/components/page-header"
-import { SettingsNav } from "./settings-nav"
+import { SettingsLayout } from "@/features/settings/settings-layout"
 
-/** Settings shell: the same header + tabs layout as the admin pages. */
-export default function SettingsLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <>
-      <PageHeader title="সেটিংস" description="দোকানের তথ্য, প্রিন্টের দাম এবং পেমেন্ট পদ্ধতি।" icon={SettingsIcon} tone="sky" />
-      <SettingsNav />
-      {children}
-    </>
-  )
+export default function Layout({ children }: { children: React.ReactNode }) {
+  return <SettingsLayout>{children}</SettingsLayout>
 }

@@ -27,18 +27,25 @@ export async function GET(request: NextRequest) {
 
   const creds = platformBkashCredentials(await getBillingSettings())
   if (!creds) return back("failed")
+  // Execute, falling back to the status query: bKash's answer decides, never the redirect alone.
+  let result: Awaited<ReturnType<typeof executePayment>>
   try {
-    // Execute, falling back to the status query: bKash's answer decides, never the redirect alone.
-    const result = await executePayment(creds, paymentId)
-    if (!result.completed || (result.amount !== undefined && result.amount + 0.001 < payment.amount)) {
-      await markUnpaid(payment._id, "failed", "বিকাশ পেমেন্ট সম্পন্ন হয়নি")
-      return back("failed")
-    }
-    await markPaid(payment._id, { trxId: result.trxId })
-    return back("success")
+    result = await executePayment(creds, paymentId)
   } catch (error) {
     console.error("Subscription bKash execute failed", error)
     await markUnpaid(payment._id, "failed", error instanceof Error ? error.message : undefined)
     return back("failed")
   }
+  if (!result.completed || (result.amount !== undefined && result.amount + 0.001 < payment.amount)) {
+    await markUnpaid(payment._id, "failed", "বিকাশ পেমেন্ট সম্পন্ন হয়নি")
+    return back("failed")
+  }
+  try {
+    await markPaid(payment._id, { trxId: result.trxId })
+  } catch (error) {
+    // bKash took the money but we could not record it: markPaid left it pending for the admin to approve.
+    console.error("Subscription bKash paid but not applied", payment.id, result.trxId, error)
+    return back("failed")
+  }
+  return back("success")
 }

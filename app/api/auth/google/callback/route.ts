@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { isAdminEmail } from "@/lib/auth"
+import { homePathFor } from "@/lib/auth"
 import { connectDb } from "@/lib/db"
 import { env } from "@/lib/env"
 import { OAUTH_COOKIE, exchangeGoogleCode } from "@/lib/google"
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
   )
   await createSession({ userId: user.id, email: user.email })
 
-  const response = NextResponse.redirect(`${env.appUrl}${isAdminEmail(user.email) ? "/dashboard/admin" : "/dashboard"}`)
+  const response = NextResponse.redirect(`${env.appUrl}${await homePathFor({ id: user.id, email: user.email })}`)
   response.cookies.delete({ name: OAUTH_COOKIE, path: "/api/auth/google" })
   return response
 }

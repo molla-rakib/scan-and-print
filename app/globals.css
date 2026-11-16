@@ -82,7 +82,7 @@
   --chart-4: oklch(0.77 0.16 75);
   --chart-5: oklch(0.63 0.21 25);
   --radius: 0.375rem;
-  --sidebar: oklch(0.985 0.005 264);
+  --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.25 0.03 264);
   --sidebar-primary: oklch(0.5 0.22 264);
   --sidebar-primary-foreground: oklch(0.985 0 0);
@@ -317,4 +317,17 @@
   .word-cycle > span, .word-cycle s::after { animation: none; }
   .word-cycle > span:first-child { opacity: 1; }
   .word-cycle > span:first-child s::after { transform: scaleX(1); }
+}
+
+/* Loading skeletons stay invisible for the first 0.4 s and then fade in, so a page that loads quickly
+   switches without a grey flash; a slow one still shows its skeleton. */
+@keyframes skeleton-appear {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+[data-slot="skeleton"] {
+  animation: skeleton-appear 0.25s ease-out 0.4s both, pulse 2s cubic-bezier(0.4, 0, 0.6, 1) 0.65s infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="skeleton"] { animation: skeleton-appear 0s 0.4s both; }
 }

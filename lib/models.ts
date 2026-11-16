@@ -6,6 +6,9 @@ const { ObjectId } = Schema.Types
 
 function defineModel<T extends Schema>(name: string, schema: T) {
   type Doc = InferSchemaType<T>
+  // In development a hot reload re-runs this file: rebuild the model so schema edits apply (a stale model
+  // silently drops new fields on save). Production compiles each model once.
+  if (process.env.NODE_ENV !== "production" && mongoose.models[name]) mongoose.deleteModel(name)
   return (mongoose.models[name] as Model<Doc>) ?? mongoose.model<Doc>(name, schema)
 }
 
@@ -263,6 +266,8 @@ const subscriptionPaymentSchema = new Schema(
     status: { type: String, enum: SUBSCRIPTION_STATUSES, default: "paid" },
     amount: { type: Number, required: true },
     days: { type: Number, required: true },
+    // Device count the owner chose with this payment; becomes the shop's device limit when paid.
+    devices: { type: Number },
     // The shop's new end date after this payment (set when paid).
     paidUntil: { type: Date },
     paidAt: { type: Date },

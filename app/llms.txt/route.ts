@@ -55,6 +55,9 @@ Language of the site: Bangla (bn). Country: Bangladesh. Currency: BDT (৳).
 ## Links
 
 - [Home page](${siteUrl("/")}): what Mudron does, features, pricing and FAQ (Bangla)
+- [Install guide](${siteUrl("/guide")}): step by step setup of the Windows print agent (Bangla)
+- [Support](${siteUrl("/support")}): contact on WhatsApp, +880 1521-505130
+- [Terms](${siteUrl("/terms")}) and [Privacy policy](${siteUrl("/privacy")}) (Bangla)
 - [Shop sign-in](${siteUrl("/login")}): shop owners sign in with Google
 - [Sitemap](${siteUrl("/sitemap.xml")}): the home page and every shop's order page (/s/<shop>)
 `

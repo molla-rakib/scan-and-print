@@ -1,9 +1,10 @@
 import { Suspense } from "react"
-import { AdminNavItem, AppSidebar, UserMenu } from "@/app/dashboard/app-sidebar"
 import { Logo } from "@/components/logo"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { Skeleton } from "@/components/ui/skeleton"
-import { getUserAndShop } from "@/lib/auth"
+import { AppSidebar } from "@/features/dashboard-shell/components/app-sidebar"
+import { SidebarAdminItem, SidebarUser } from "@/features/dashboard-shell/components/sidebar-slots"
+import { SubscriptionBanner } from "@/features/dashboard-shell/components/subscription-banner"
 import type { Metadata } from "next"
 
 // Signed-in area: keep it out of search results (robots.txt also disallows it).
@@ -30,19 +31,11 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
           <Logo className="h-8 md:hidden" />
           <span className="hidden text-sm text-muted-foreground md:inline">দোকান ড্যাশবোর্ড</span>
         </header>
+        <Suspense>
+          <SubscriptionBanner />
+        </Suspense>
         <div className="flex w-full flex-1 flex-col gap-8 p-4 sm:p-6 lg:p-8">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   )
-}
-
-// Sidebar slots must not redirect: an admin without a shop can still open the admin panel.
-async function SidebarAdminItem() {
-  const { user } = await getUserAndShop()
-  return user.isAdmin ? <AdminNavItem /> : null
-}
-
-async function SidebarUser() {
-  const { user, shop } = await getUserAndShop()
-  return <UserMenu title={shop?.name ?? (user.name || user.email)} email={user.email} isAdmin={user.isAdmin} />
 }

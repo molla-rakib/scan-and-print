@@ -4,7 +4,7 @@ import { connectDb } from "@/lib/db"
 import { Shop } from "@/lib/models"
 import { siteUrl } from "@/lib/seo"
 
-// Home, llms.txt and every active shop's order page. Read on each request (shops come and go, and
+// Home, the guide/support/legal pages, llms.txt and every active shop's order page. Read on each request (shops come and go, and
 // the database is not reachable while the Docker image is built).
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   await connection()
@@ -12,6 +12,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const shops = await Shop.find({ status: "active" }).select("slug updatedAt").lean()
   return [
     { url: siteUrl("/"), changeFrequency: "weekly", priority: 1 },
+    { url: siteUrl("/guide"), changeFrequency: "monthly", priority: 0.8 },
+    { url: siteUrl("/support"), changeFrequency: "monthly", priority: 0.5 },
+    { url: siteUrl("/terms"), changeFrequency: "yearly", priority: 0.3 },
+    { url: siteUrl("/privacy"), changeFrequency: "yearly", priority: 0.3 },
     { url: siteUrl("/llms.txt"), changeFrequency: "monthly", priority: 0.3 },
     ...shops.map((shop) => ({
       url: siteUrl(`/s/${shop.slug}`),

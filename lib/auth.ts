@@ -45,3 +45,15 @@ export const requireShop = cache(async () => {
   if (!shop) redirect("/onboarding")
   return { user, shop }
 })
+
+/**
+ * Where a signed-in user's "home" is: onboarding while they have no shop (admins too), then the admin panel
+ * for admins and the dashboard for owners. Send people straight there: a redirect from inside a streamed dashboard page (requireShop) only
+ * takes effect once the browser hydrates, which looked like onboarding "not loading".
+ */
+export async function homePathFor(user: { id: string; email: string }) {
+  await connectDb()
+  // Everyone without a shop sets one up first, admins included (they can skip to the admin panel from there).
+  if (!(await Shop.exists({ ownerId: user.id }))) return "/onboarding"
+  return isAdminEmail(user.email) ? "/dashboard/admin" : "/dashboard"
+}
