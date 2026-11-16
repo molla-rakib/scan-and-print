@@ -11,6 +11,7 @@ mod api;
 mod config;
 mod gui;
 mod icon;
+mod job_defaults;
 mod install;
 mod log;
 mod print;

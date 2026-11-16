@@ -70,6 +70,13 @@ fn print_settings(options: &PrintOptions) -> Result<String, String> {
 /// Prints `file` on `printer`. The error is shown to the shop owner, so it is in Bangla.
 pub fn print_pdf(sumatra: &Path, file: &Path, printer: &str, options: &PrintOptions) -> Result<(), String> {
     let settings = print_settings(options)?;
+    // Kept until SumatraPDF has handed the job to the spooler, then the printer's old default comes back.
+    let _both_sides = if options.duplex {
+        let paper = crate::printers::paper_id(options.paper_size.unwrap_or("A4")).unwrap_or(9);
+        crate::job_defaults::both_sides(printer, paper)
+    } else {
+        None
+    };
     let mut child = Command::new(sumatra)
         .arg("-print-to")
         .arg(printer)

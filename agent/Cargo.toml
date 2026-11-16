@@ -1,6 +1,6 @@
 [package]
 name = "mudron"
-version = "1.3.0"
+version = "1.3.1"
 edition = "2024"
 description = "Mudron agent: prints customer jobs on the shop's Windows printers"
 publish = false
@@ -16,10 +16,12 @@ windows = { version = "0.62.2", features = [
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
     "Win32_Graphics_Printing",
+    "Win32_Graphics_Printing_PrintTicket",
     "Win32_Security",
     "Win32_Security_Cryptography",
     "Win32_Storage_FileSystem",
     "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
     "Win32_Storage_Xps",
     "Win32_System_Console",
     "Win32_System_Diagnostics_Debug",
@@ -40,3 +42,4 @@ strip = true
 
 [build-dependencies]
 embed-resource = "3.0.12"
+resvg = { version = "0.50", default-features = false }

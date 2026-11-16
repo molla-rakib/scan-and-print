@@ -3,7 +3,7 @@
 Living document: the goal, the decisions behind the design, what is done, and what comes next.
 Update it whenever a feature lands, a decision changes, or a question gets answered.
 
-_Last updated: 2026-11-12_
+_Last updated: 2026-11-17_
 
 ---
 
@@ -145,6 +145,8 @@ Code lives in `agent/` (see `agent/README.md`). Release with `agent/release.ps1`
 - [ ] Release agent 1.1.0 (`agent/release.ps1` on Windows) and run `npm run migrate:orders` on the production database
 - [ ] Test page ranges, duplex and Legal/A3 on a real printer
 - [ ] Release agent 1.2.0 (Legal/A3 both-sides fix) with `agent/release.ps1`; confirm with the shop that reported it
+- [x] Agent 1.3.1 (code): both sides set through the driver's PrintTicket while SumatraPDF prints (`agent/src/job_defaults.rs`)
+- [ ] Release agent 1.3.1 and confirm a 4-page both-sides job prints on 2 sheets on the shop's printer
 
 ### 📋 Phase 2.6: Shops pay their subscription online (planned 2026-11-11)
 
@@ -267,4 +269,5 @@ To reach 9+ (in order):
 | 2026-11-12 | **Renamed everything to Mudron; production moves to `https://mudron.org`** (self-hosted VPS, Caddy, MongoDB shared with another app in its own container). Agent 1.3.0 is `Mudron.exe` (CLI `mudron`), installs to `%LOCALAPPDATA%\Programs\Mudron`, data in `%APPDATA%\Mudron`, registry/mutex names `Mudron`, env vars `MUDRON_SERVER` / `MUDRON_SUMATRA`. Installing it over a ≤ 1.2.0 "ScanAndPrint" agent stops the old one, takes over its pairing (server switched to mudron.org) and removes the old files and registry entries. npm package, compose project and local DB name are `mudron`. **Deployed to mudron.org:** Docker image (`Dockerfile`, standalone output), shared `/var/www/infra` stack (Caddy + MongoDB 8 with a user per app) also serving eshopbd.site, Atlas data copied into the `mudron` database, agency-os demo removed. See `deploy/README.md`. |
 | 2026-11-12 | **SEO and AI discoverability:** `robots.txt` (`app/robots.ts`: public pages open to search and AI crawlers such as GPTBot, ClaudeBot, PerplexityBot, Google-Extended; dashboard, login, onboarding, API and order pages closed), `sitemap.xml` (home, llms.txt and every active shop page, read per request), `llms.txt` (plain English + Bangla description, how it works, pricing, FAQ), `manifest.webmanifest`, a 1200×630 link-preview image (`app/opengraph-image.tsx`), site-wide title/description/keywords/Open Graph/Twitter tags (`lib/seo.ts`), canonical URLs per page, schema.org JSON-LD on the home page (Organization, WebSite, SoftwareApplication with price, FAQPage), shop pages with their own description and preview, noindex on signed-in pages. `APP_URL`, `DEVICE_MONTHLY_FEE` and `TRIAL_DAYS` are now Docker build args too, since prerendered pages bake them in. |
 | 2026-11-12 | Google Tag Manager on every page via `@next/third-parties` in `app/layout.tsx`, production builds only. The container ID comes from `GOOGLE_ANALYTICS_ID` (`GTM-KSQJDV95`), baked in at build time (Docker build arg); the production compose file moved to `docker-compose.prod.yml` in the repo root so Compose reads `.env` for it. |
+| 2026-11-17 | **Both sides printed one-sided on a real duplex printer** (4-page PDF → 4 sheets). Server, API and agent all passed `duplex` correctly; SumatraPDF only sets the standard `dmDuplex` field of the DEVMODE, which many drivers ignore in favour of the setting in their private data. Agent 1.3.1 (`agent/src/job_defaults.rs`): before a both-sides job it lets the driver build the settings from a PrintTicket (`JobDuplexAllDocumentsContiguously = TwoSidedLongEdge`, as the Windows print dialog does), makes them the printer's per-user default while SumatraPDF prints, then restores the old default; a backup in `%APPDATA%\Mudron\printer-default.bin` is restored on the next start if the agent dies mid-print. The log shows the option the driver chose ("driver settings for both sides: …"). Tested the PrintTicket/SetPrinter path on the dev PC (Print to PDF, no duplex); not yet on a duplex printer. **Agent icon is now the official logo:** `build.rs` renders `public/images/logo-small.svg` (resvg) into the exe .ico, shortcuts and tray icon (status dot kept); the popups show it too, `agent/ui/logo.svg` removed. |
 | 2026-11-11 | Maturity review: **6.5/10** (code 8, features 8, security 7, performance 7, reliability/testing 4, operations 4). Goal 9+; the steps to get there are listed under "🎯 Maturity" in section 4. |

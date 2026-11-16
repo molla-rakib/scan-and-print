@@ -67,6 +67,7 @@ pub fn run(cfg: &Config, opts: &Options, stop: Arc<AtomicBool>, notify: impl Fn(
     clear_dir(&work_dir);
 
     log(&format!("Mudron agent {VERSION} connected to {}", cfg.server));
+    crate::job_defaults::restore_after_crash();
     match (print::find_sumatra(), opts.dry_run) {
         (_, true) => log("Dry run: jobs are downloaded and marked completed without printing."),
         (Some(path), false) => log(&format!("Printing with {}", path.display())),

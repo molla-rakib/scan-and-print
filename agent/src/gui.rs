@@ -42,7 +42,8 @@ const FIRST_UPDATE_CHECK: Duration = Duration::from_secs(2 * 60);
 const UPDATE_CHECK_EVERY: Duration = Duration::from_secs(6 * 60 * 60);
 
 const STYLE: &str = include_str!("../ui/style.css");
-const LOGO: &str = include_str!("../ui/logo.svg");
+/// The official logo; `class="logo"` is added where it is inserted.
+const LOGO: &str = include_str!("../../public/images/logo-small.svg");
 const PAIR_HTML: &str = include_str!("../ui/pair.html");
 const STATUS_HTML: &str = include_str!("../ui/status.html");
 /// Retry the SumatraPDF download this often until it succeeds.
@@ -550,11 +551,11 @@ fn dot(status: Status, attention: bool) -> Dot {
 }
 
 fn tray_icon(status: Status, attention: bool) -> tray_icon::Icon {
-    tray_icon::Icon::from_rgba(icon::rgba(32, dot(status, attention)), 32, 32).expect("valid icon")
+    tray_icon::Icon::from_rgba(icon::rgba(dot(status, attention)), icon::SIZE, icon::SIZE).expect("valid icon")
 }
 
 fn window_icon() -> Option<tao::window::Icon> {
-    tao::window::Icon::from_rgba(icon::rgba(32, Dot::None), 32, 32).ok()
+    tao::window::Icon::from_rgba(icon::rgba(Dot::None), icon::SIZE, icon::SIZE).ok()
 }
 
 /// Title, size (logical px) and whether the user may resize, per window.
@@ -571,7 +572,7 @@ fn page_html(page: Page) -> String {
         Page::Status => STATUS_HTML,
     }
     .replace("/*STYLE*/", STYLE)
-    .replace("<!--LOGO-->", LOGO)
+    .replace("<!--LOGO-->", &LOGO.replacen("<svg ", "<svg class=\"logo\" aria-hidden=\"true\" ", 1))
 }
 
 fn build_popup(

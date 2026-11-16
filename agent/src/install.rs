@@ -109,7 +109,7 @@ pub fn install() -> Result<(), String> {
     fs::create_dir_all(&dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
     copy_with_retry(&source, &installed_exe())?;
     let ico = dir.join("app.ico");
-    let _ = fs::write(&ico, icon::ico(&[16, 24, 32, 48, 64, 256]));
+    let _ = fs::write(&ico, icon::ICO);
 
     register_uninstall(&dir);
     for folder in [&FOLDERID_Programs, &FOLDERID_Desktop] {

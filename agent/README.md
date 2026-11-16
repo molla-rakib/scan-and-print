@@ -60,7 +60,7 @@ mudron install | uninstall
 mudron ui-preview pair|pair-error|pair-done|status|status-setup|status-offline   # debug builds: open a window with sample data
 ```
 
-The windows are HTML in `ui/` (`style.css` is shared, `logo.svg` is inserted at `<!--LOGO-->`); use
+The windows are HTML in `ui/` (`style.css` is shared; the official logo, `public/images/logo-small.svg`, is inserted at `<!--LOGO-->` and also rendered into the app and tray icon by `build.rs`); use
 `ui-preview` to check a change without pairing or placing orders.
 
 `--include-virtual` also offers fax and "print to file" printers (such as Microsoft Print to PDF) to the
