@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   output: "standalone",
   experimental: {
     agentFeedback: true,
+    agentUpgrade: "security",
   },
   cacheComponents: true,
   // The admin panel lives inside the dashboard now; keep old links working.
