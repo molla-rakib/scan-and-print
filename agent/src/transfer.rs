@@ -16,7 +16,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
     thread,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime},
 };
 
 use windows::Win32::UI::Shell::FOLDERID_Documents;
@@ -128,9 +128,11 @@ pub fn run(cfg: &Config, kind: Kind, stop: Arc<AtomicBool>, notify: impl Fn(Tran
 }
 
 fn scan_loop(client: &Client, id: &str, dir: &Path, stop: &AtomicBool, notify: &impl Fn(TransferEvent)) {
-    // Files already in the folder belong to earlier work; only scans made during the session are sent.
-    let mut done: HashSet<PathBuf> = scan_files(dir).into_iter().collect();
-    let mut sizes: HashMap<PathBuf, u64> = HashMap::new();
+    // Files already in the folder belong to earlier work; only scans made during the session are sent. A file
+    // is known by its path and modification time, so software that reuses one name ("scan.pdf") still works.
+    let mut done: HashSet<(PathBuf, SystemTime)> = scan_files(dir).into_iter().filter_map(|p| modified(&p).map(|t| (p, t))).collect();
+    // Size of each waiting file and since when it has had that size.
+    let mut steady: HashMap<PathBuf, (u64, Instant)> = HashMap::new();
     let mut tries: HashMap<PathBuf, u32> = HashMap::new();
     let mut last_state = Instant::now();
 
@@ -144,19 +146,21 @@ fn scan_loop(client: &Client, id: &str, dir: &Path, stop: &AtomicBool, notify: &
             }
         }
         for path in scan_files(dir) {
-            if done.contains(&path) {
+            let Some(mtime) = modified(&path) else { continue };
+            if done.contains(&(path.clone(), mtime)) {
                 continue;
             }
             let Ok(size) = fs::metadata(&path).map(|m| m.len()) else { continue };
-            // A scanner writes the file over a few seconds: send it once its size stops changing.
-            if size == 0 || sizes.insert(path.clone(), size) != Some(size) {
+            if !scan_ready(&path, size, mtime, &mut steady) {
                 continue;
             }
             let name = file_name(&path);
             match client.send_scan(id, &name, &path) {
                 Ok(()) => {
-                    done.insert(path.clone());
-                    sizes.remove(&path);
+                    // Known even if deleting it fails below, so it is never sent twice.
+                    done.insert((path.clone(), mtime));
+                    steady.remove(&path);
+                    tries.remove(&path);
                     // The customer has it now; don't leave their NID or certificate on the shop PC.
                     if let Err(e) = fs::remove_file(&path) {
                         log(&format!("Could not delete sent scan {}: {e}", path.display()));
@@ -168,7 +172,8 @@ fn scan_loop(client: &Client, id: &str, dir: &Path, stop: &AtomicBool, notify: &
                     let count = tries.entry(path.clone()).or_default();
                     *count += 1;
                     if *count >= MAX_TRIES {
-                        done.insert(path.clone());
+                        done.insert((path.clone(), mtime));
+                        tries.remove(&path);
                         notify(TransferEvent::SendFailed { name, error: bangla(&e) });
                     }
                 }
@@ -195,7 +200,10 @@ fn receive_loop(client: &Client, id: &str, dir: &Path, stop: &AtomicBool, notify
                         continue;
                     }
                     let dest = unique_path(dir, &name);
-                    let result = client.fetch_transfer_file(id, &file.id, &dest).and_then(|_| client.ack_transfer_file(id, &file.id));
+                    let result = client
+                        .fetch_transfer_file(id, &file.id, &dest)
+                        .map(|_| mark_from_internet(&dest))
+                        .and_then(|_| client.ack_transfer_file(id, &file.id));
                     match result {
                         Ok(()) => {
                             done.insert(file.id.clone());
@@ -221,6 +229,70 @@ fn receive_loop(client: &Client, id: &str, dir: &Path, stop: &AtomicBool, notify
             Err(e) => log(&format!("Transfer {id}: {e}")),
         }
         wait(RECEIVE_POLL, stop);
+    }
+}
+
+fn modified(path: &Path) -> Option<SystemTime> {
+    fs::metadata(path).and_then(|m| m.modified()).ok()
+}
+
+/// A file no longer written to for this long, and closed by its writer, may be finished.
+const QUIET_FOR: Duration = Duration::from_secs(2);
+/// A finished-looking file is sent at once; one that never looks finished is sent after this long unchanged.
+const GIVE_UP_AFTER: Duration = Duration::from_secs(30);
+
+/// Whether a scan is completely written. Scanners write over several seconds and may pause mid-file (slow
+/// network to a copier's Scan to Folder), so a steady size alone is not enough: the file must also be closed
+/// by its writer, untouched for QUIET_FOR, and end the way its format ends (PDF `%%EOF`, JPEG `FFD9`, PNG
+/// `IEND`). One that never looks finished is sent once it has not changed for GIVE_UP_AFTER.
+fn scan_ready(path: &Path, size: u64, mtime: SystemTime, steady: &mut HashMap<PathBuf, (u64, Instant)>) -> bool {
+    if size == 0 {
+        return false;
+    }
+    let since = match steady.get(path) {
+        Some((known, since)) if *known == size => *since,
+        _ => {
+            steady.insert(path.to_path_buf(), (size, Instant::now()));
+            return false;
+        }
+    };
+    if mtime.elapsed().map_or(true, |age| age < QUIET_FOR) || !closed_by_writer(path) {
+        return false;
+    }
+    looks_complete(path) || since.elapsed() >= GIVE_UP_AFTER
+}
+
+/// Opening with no sharing fails while another program (the scanner software) still has the file open.
+fn closed_by_writer(path: &Path) -> bool {
+    use std::os::windows::fs::OpenOptionsExt;
+    fs::OpenOptions::new().read(true).share_mode(0).open(path).is_ok()
+}
+
+fn looks_complete(path: &Path) -> bool {
+    use std::io::{Read, Seek, SeekFrom};
+    let Ok(mut file) = fs::File::open(path) else { return false };
+    let len = file.metadata().map(|m| m.len()).unwrap_or(0);
+    let tail_len = len.min(1024);
+    let mut tail = vec![0; tail_len as usize];
+    if file.seek(SeekFrom::Start(len - tail_len)).is_err() || file.read_exact(&mut tail).is_err() {
+        return false;
+    }
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or_default().to_ascii_lowercase();
+    let trimmed = tail.iter().rposition(|b| !b.is_ascii_whitespace() && *b != 0).map_or(&tail[..0], |end| &tail[..=end]);
+    match ext.as_str() {
+        "pdf" => tail.windows(5).any(|w| w == b"%%EOF"),
+        "jpg" | "jpeg" => trimmed.ends_with(&[0xFF, 0xD9]),
+        "png" => tail.windows(4).any(|w| w == b"IEND"),
+        _ => true,
+    }
+}
+
+/// Marks a customer's file as downloaded from the internet (Mark of the Web, zone 3), as a browser would:
+/// Office then opens it in Protected View with macros blocked, and Windows warns before running anything.
+fn mark_from_internet(path: &Path) {
+    let stream = format!("{}:Zone.Identifier", path.display());
+    if let Err(e) = fs::write(&stream, "[ZoneTransfer]\r\nZoneId=3\r\n") {
+        log(&format!("Could not mark {} as from the internet: {e}", path.display()));
     }
 }
 

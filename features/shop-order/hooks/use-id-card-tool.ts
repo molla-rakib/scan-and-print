@@ -41,16 +41,19 @@ export function useIdCardTool(onDone: (file: File, color: boolean) => void) {
 
   const size = cardType === "custom" ? { widthMm: customMm.width, heightMm: customMm.height } : CARD_TYPES[cardType]
   const maxSets = maxCardSets({ ...size, scale }, !!back)
-  const setsShown = Math.min(sets, maxSets)
+  const setsShown = Math.min(Math.max(sets, 1), maxSets)
+  // Whether the 1.5× size still fits one copy on the page.
+  const largeFits = maxCardSets({ ...size, scale: 1.5 }, !!back) > 0
 
   async function pick(side: "front" | "back", file: File) {
     setLoading(true)
     try {
       const image = await loadImage(file)
       let quad = detectQuad(image)
-      // A card photographed upright: turn the corners so the long edge prints across.
+      // A card photographed the other way round from its size (upright for a landscape card, or the
+      // reverse): turn the corners so it isn't squashed into the wrong shape.
       const measured = quadSize(quad)
-      if (measured.height > measured.width) quad = rotateQuad(quad)
+      if (measured.width >= measured.height !== size.widthMm >= size.heightMm) quad = rotateQuad(quad)
       const value = { image, quad }
       if (side === "front") setFront(value)
       else setBack(value)
@@ -77,7 +80,7 @@ export function useIdCardTool(onDone: (file: File, color: boolean) => void) {
   }
 
   async function finish() {
-    if (!front) return
+    if (!front || setsShown < 1) return
     setBuilding(true)
     try {
       // Let the button show its spinner before the heavy work blocks the page.
@@ -110,6 +113,7 @@ export function useIdCardTool(onDone: (file: File, color: boolean) => void) {
     sets: setsShown,
     setSets,
     maxSets,
+    largeFits,
     scale,
     setScale,
     stamp,

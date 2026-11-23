@@ -1,6 +1,6 @@
 import { UPLOAD_CHUNK_BYTES, type JobKind } from "@/lib/constants"
 
-type Uploaded = { order: string; file: { id: string; pageCount: number } }
+type Uploaded = { order: string; file: { id: string; pageCount: number; encrypted?: boolean } }
 
 export async function postJson<T>(url: string, body: unknown): Promise<T> {
   const response = await fetch(url, {

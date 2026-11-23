@@ -1,5 +1,5 @@
 import "server-only"
-import { PDFDocument } from "pdf-lib"
+import { PDFDocument, degrees, type PDFEmbeddedPage } from "pdf-lib"
 
 export class InvalidPdfError extends Error {}
 
@@ -7,13 +7,16 @@ export class InvalidPdfError extends Error {}
 const A4 = { width: 595.28, height: 841.89 }
 const IMAGE_MARGIN = 28
 
-/** Returns the page count, or throws InvalidPdfError if the file is not a readable PDF. */
-export async function countPdfPages(bytes: Buffer): Promise<number> {
+/**
+ * Page count and whether the PDF is encrypted (password-protected PDFs still print, but we can't change them).
+ * Throws InvalidPdfError if the file is not a readable PDF.
+ */
+export async function readPdf(bytes: Buffer): Promise<{ pageCount: number; encrypted: boolean }> {
   try {
     const doc = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false })
-    const pages = doc.getPageCount()
-    if (pages < 1) throw new InvalidPdfError("এই PDF-এ কোনো পৃষ্ঠা নেই।")
-    return pages
+    const pageCount = doc.getPageCount()
+    if (pageCount < 1) throw new InvalidPdfError("এই PDF-এ কোনো পৃষ্ঠা নেই।")
+    return { pageCount, encrypted: doc.isEncrypted }
   } catch (error) {
     if (error instanceof InvalidPdfError) throw error
     throw new InvalidPdfError("PDF ফাইলটি পড়া যাচ্ছে না। ফাইলটি নষ্ট বা পাসওয়ার্ড দেওয়া থাকতে পারে।")
@@ -49,7 +52,15 @@ export async function pagesPerSheetPdf(bytes: Uint8Array, pages: number[], perSh
   const source = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false })
   const numbers = pages.length ? pages : source.getPageIndices().map((i) => i + 1)
   const doc = await PDFDocument.create()
-  const embedded = await doc.embedPages(numbers.map((n) => source.getPage(n - 1)))
+  const sourcePages = numbers.map((n) => source.getPage(n - 1))
+  // Embed only what a viewer shows (the CropBox), and keep each page's /Rotate.
+  const embedded = await Promise.all(
+    sourcePages.map((page) => {
+      const box = page.getCropBox()
+      return doc.embedPage(page, { left: box.x, bottom: box.y, right: box.x + box.width, top: box.y + box.height })
+    })
+  )
+  const rotations = sourcePages.map((page) => ((page.getRotation().angle % 360) + 360) % 360)
   const landscape = perSheet === 2
   const [width, height] = landscape ? [A4.height, A4.width] : [A4.width, A4.height]
   const [cols, rows] = perSheet === 2 ? [2, 1] : [2, 2]
@@ -60,18 +71,39 @@ export async function pagesPerSheetPdf(bytes: Uint8Array, pages: number[], perSh
   for (let start = 0; start < embedded.length; start += perSheet) {
     const sheet = doc.addPage([width, height])
     embedded.slice(start, start + perSheet).forEach((page, i) => {
+      const rotation = rotations[start + i]
+      const turned = rotation === 90 || rotation === 270
+      // Size as the page is shown (a /Rotate of 90 or 270 swaps width and height).
+      const [shownW, shownH] = turned ? [page.height, page.width] : [page.width, page.height]
       const col = i % cols
       const row = Math.floor(i / cols)
-      const scale = Math.min(cellW / page.width, cellH / page.height)
-      const w = page.width * scale
-      const h = page.height * scale
-      const x = IMAGE_MARGIN + col * (cellW + gap) + (cellW - w) / 2
+      const scale = Math.min(cellW / shownW, cellH / shownH)
+      const left = IMAGE_MARGIN + col * (cellW + gap) + (cellW - shownW * scale) / 2
       // PDF y runs upwards: the first row is the top one.
-      const y = height - IMAGE_MARGIN - (row + 1) * cellH - row * gap + (cellH - h) / 2
-      sheet.drawPage(page, { x, y, width: w, height: h })
+      const bottom = height - IMAGE_MARGIN - (row + 1) * cellH - row * gap + (cellH - shownH * scale) / 2
+      drawTurned(sheet, page, rotation, left, bottom, page.width * scale, page.height * scale)
     })
   }
   return Buffer.from(await doc.save())
+}
+
+/**
+ * Draws an embedded page turned clockwise by `rotation` (its /Rotate), so that the turned page's box has its
+ * bottom-left corner at (left, bottom). w × h is the page's own (unturned) drawn size. pdf-lib turns
+ * counter-clockwise around the drawing origin, hence the negative angle and the shifted origin.
+ */
+function drawTurned(
+  sheet: ReturnType<PDFDocument["addPage"]>,
+  page: PDFEmbeddedPage,
+  rotation: number,
+  left: number,
+  bottom: number,
+  w: number,
+  h: number
+) {
+  const origin =
+    rotation === 90 ? { x: left, y: bottom + w } : rotation === 180 ? { x: left + w, y: bottom + h } : rotation === 270 ? { x: left + h, y: bottom } : { x: left, y: bottom }
+  sheet.drawPage(page, { ...origin, width: w, height: h, rotate: degrees(-rotation) })
 }
 
 /**
@@ -81,11 +113,11 @@ export async function pagesPerSheetPdf(bytes: Uint8Array, pages: number[], perSh
 export async function preparePrintFile(bytes: Buffer, fileName: string) {
   const kind = detectKind(bytes)
   if (!kind) throw new InvalidPdfError("শুধু PDF, JPG বা PNG ফাইল দেওয়া যাবে।")
-  if (kind === "pdf") return { pdf: bytes, pageCount: await countPdfPages(bytes), kind, fileName }
+  if (kind === "pdf") return { pdf: bytes, ...(await readPdf(bytes)), kind, fileName }
 
   try {
     const pdf = await imageToPdf(bytes, kind)
-    return { pdf, pageCount: 1, kind, fileName }
+    return { pdf, pageCount: 1, encrypted: false, kind, fileName }
   } catch {
     throw new InvalidPdfError("ছবিটি পড়া যাচ্ছে না। অন্য একটি ছবি দিন।")
   }

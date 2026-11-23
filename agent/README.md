@@ -67,7 +67,11 @@ mudron status | unpair
 mudron autostart on|off
 mudron install | uninstall
 mudron ui-preview pair|pair-error|pair-done|status|status-setup|status-offline   # debug builds: open a window with sample data
+mudron transfer scan|receive   # debug builds: one counter session in the console (what the counter window runs)
 ```
+
+To test the counter without touching an installed agent's saved connection, give the debug build its own
+`APPDATA` (e.g. `APPDATA=%TEMP%\mudron-test`), pair it against a local server and run `mudron transfer scan`.
 
 The windows are HTML in `ui/` (`style.css` is shared; the official logo, `public/images/logo-small.svg`, is inserted at `<!--LOGO-->` and also rendered into the app and tray icon by `build.rs`); use
 `ui-preview` to check a change without pairing or placing orders.

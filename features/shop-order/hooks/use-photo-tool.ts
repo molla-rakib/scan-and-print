@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { toast } from "sonner"
 import { replaceBackground } from "../lib/background"
 import { cropTo, loadImage } from "../lib/imaging"
@@ -35,6 +35,8 @@ export function usePhotoTool(onDone: (file: File) => void) {
   const [loading, setLoading] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [building, setBuilding] = useState(false)
+  // Bumped by every new photo or background choice; a slower, older background result is then dropped.
+  const request = useRef(0)
 
   const dims = PHOTO_SIZES[size]
   const aspect = dims.widthMm / dims.heightMm
@@ -50,6 +52,8 @@ export function usePhotoTool(onDone: (file: File) => void) {
     ]) !== null
 
   async function pick(file: File) {
+    request.current++
+    setProcessing(false)
     setLoading(true)
     try {
       const loaded = await loadImage(file, 2000)
@@ -66,18 +70,24 @@ export function usePhotoTool(onDone: (file: File) => void) {
 
   async function setBackground(next: Background) {
     if (!original) return
+    const id = ++request.current
     setBackgroundState(next)
     const color = BACKGROUNDS[next]
-    if (!color) return setImage(original)
+    if (!color) {
+      setProcessing(false)
+      return setImage(original)
+    }
     setProcessing(true)
     try {
-      setImage(await replaceBackground(original, color))
+      const image = await replaceBackground(original, color)
+      if (id === request.current) setImage(image)
     } catch (error) {
+      if (id !== request.current) return
       toast.error((error as Error).message)
       setBackgroundState("keep")
       setImage(original)
     } finally {
-      setProcessing(false)
+      if (id === request.current) setProcessing(false)
     }
   }
 

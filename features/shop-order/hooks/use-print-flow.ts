@@ -69,7 +69,7 @@ export function usePrintFlow(shop: PublicShopView, maxUploadMb: number, counter:
             () => patch(next.key, { state: "analyzing" })
           )
           orderRef.current = result.order
-          patch(next.key, { state: "ready", id: result.file.id, pageCount: result.file.pageCount })
+          patch(next.key, { state: "ready", id: result.file.id, pageCount: result.file.pageCount, encrypted: result.file.encrypted })
         } catch (error) {
           patch(next.key, { state: "error", error: (error as Error).message })
         }

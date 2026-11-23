@@ -23,6 +23,8 @@ export type FileItem = {
   /** Server id of the draft job, once uploaded. */
   id?: string
   pageCount?: number
+  /** Password-protected PDF: prints as it is, so it can't be laid out several pages per sheet. */
+  encrypted?: boolean
   options: PrintOptions
 }
 
@@ -37,7 +39,7 @@ export function selectedPages(item: FileItem) {
 
 /** Whether 2 or 4 pages per sheet can be chosen: documents and scans with more than one page. */
 export function perSheetAvailable(item: FileItem) {
-  return (item.kind === "document" || item.kind === "scan") && selectedPages(item) > 1
+  return (item.kind === "document" || item.kind === "scan") && selectedPages(item) > 1 && !item.encrypted
 }
 
 /** Sides that print: picked pages divided onto the pages-per-sheet layout. */

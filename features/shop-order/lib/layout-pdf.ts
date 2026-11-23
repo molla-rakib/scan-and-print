@@ -25,15 +25,16 @@ export type CardLayout = {
   scale: number
 }
 
-/** How many sets fit on one A4 sheet for a card size and scale. */
+/** How many sets fit on one A4 sheet for a card size and scale; 0 when not even one does. */
 export function maxCardSets(layout: Omit<CardLayout, "sets">, hasBack: boolean) {
   const w = layout.widthMm * layout.scale
   const h = layout.heightMm * layout.scale
   const rows = Math.floor((A4_MM.height - 30 + 12) / (h + 12))
   // Side by side when both fit across the page; otherwise front above back.
   const across = Math.floor((A4_MM.width - 20 + 10) / (w + 10))
-  if (!hasBack) return Math.max(1, rows * across)
-  return across >= 2 ? Math.max(1, rows * Math.floor(across / 2)) : Math.max(1, Math.floor(rows / 2))
+  if (across < 1 || rows < 1) return 0
+  if (!hasBack) return rows * across
+  return across >= 2 ? rows * Math.floor(across / 2) : Math.floor(rows / 2)
 }
 
 /** Where each card goes on the sheet (mm from the top-left corner). */

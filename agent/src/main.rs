@@ -185,6 +185,9 @@ fn cli(args: &[String]) -> ExitCode {
                 ExitCode::FAILURE
             }
         },
+        // Debug builds only: runs a counter session in the console, as the counter window would (for testing).
+        #[cfg(debug_assertions)]
+        Some("transfer") => transfer_console(positional.get(1).copied().unwrap_or("")),
         Some(other) => {
             eprintln!("Unknown command \"{other}\".\n\n{USAGE}");
             ExitCode::from(2)
@@ -229,6 +232,29 @@ fn run_console(dry_run: bool, include_virtual: bool) -> ExitCode {
         runner::Exit::Stopped => ExitCode::SUCCESS,
         runner::Exit::Unauthorized => ExitCode::from(3),
     }
+}
+
+/// `mudron transfer scan|receive` (debug builds): one counter session, events printed, until the server closes it.
+#[cfg(debug_assertions)]
+fn transfer_console(kind: &str) -> ExitCode {
+    let Some(kind) = transfer::Kind::parse(kind) else {
+        eprintln!("Usage: mudron transfer scan|receive");
+        return ExitCode::from(2);
+    };
+    let Ok(Some(cfg)) = config::load() else {
+        eprintln!("This PC is not paired yet. Run: mudron pair <CODE>");
+        return ExitCode::from(2);
+    };
+    println!("scan folder: {}\ninbox: {}", transfer::scan_dir().display(), transfer::inbox_dir().display());
+    transfer::run(&cfg, kind, Arc::new(AtomicBool::new(false)), |event| match event {
+        transfer::TransferEvent::Opened { kind, qr_svg } => println!("opened {} (qr {} bytes)", kind.as_str(), qr_svg.len()),
+        transfer::TransferEvent::Failed(message) => println!("failed: {message}"),
+        transfer::TransferEvent::Sent(name) => println!("sent: {name}"),
+        transfer::TransferEvent::SendFailed { name, error } => println!("send failed: {name}: {error}"),
+        transfer::TransferEvent::Received { name, path } => println!("received: {name} -> {}", path.display()),
+        transfer::TransferEvent::Closed => println!("closed"),
+    });
+    ExitCode::SUCCESS
 }
 
 fn pair(code: &str, server: &str) -> ExitCode {

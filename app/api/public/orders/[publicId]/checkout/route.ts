@@ -65,7 +65,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ pub
   if (!order || !shop) return jsonError("অর্ডার পাওয়া যায়নি", 404)
   if (!["draft", "pending_payment"].includes(order.status)) return jsonError("এই অর্ডারটি আগেই জমা দেওয়া হয়েছে", 409)
   if (!shopIsOpen(shop)) return jsonError("এই দোকান এখন অর্ডার নিচ্ছে না", 403)
-  if (!paymentOptions(shop)[body.method]) return jsonError("এই দোকানে এই পেমেন্ট পদ্ধতি চালু নেই")
+  // A counter order is the owner taking cash at the counter: allowed even when customers can't pay cash.
+  const counter = body.method === "cash" && body.counter === true && (await getSession())?.userId === String(shop.ownerId)
+  if (!counter && !paymentOptions(shop)[body.method]) return jsonError("এই দোকানে এই পেমেন্ট পদ্ধতি চালু নেই")
 
   const jobs = await PrintJob.find({ orderId: order._id, status: { $in: ["draft", "pending_payment"] } }).sort({ createdAt: 1 })
   if (jobs.length === 0) return jsonError("অর্ডারে কোনো ফাইল নেই। আবার ফাইল আপলোড করুন।", 410)
@@ -116,7 +118,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ pub
       if (pages.length === job.pageCount) pages = []
       // Several pages per sheet: for documents and scans only, and pointless for a single page.
       const selected = pages.length || job.pageCount
-      const perSheet = ["document", "scan"].includes(job.kind ?? "document") && selected > 1 ? options.perSheet : 1
+      // Encrypted PDFs can't be laid out by us (pdf-lib can't decrypt them); they print as they are.
+      const perSheet = ["document", "scan"].includes(job.kind ?? "document") && selected > 1 && !job.encrypted ? options.perSheet : 1
       const printPages = printedSides(selected, perSheet)
       // A single page has no back side.
       const duplex = options.duplex && printPages > 1
@@ -142,7 +145,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pub
   order.set({ amount, paymentMethod: body.method })
   for (const job of jobs) job.set({ paymentMethod: body.method })
 
-  if (body.method === "cash" && body.counter && (await getSession())?.userId === String(shop.ownerId)) {
+  if (counter) {
     order.set({ customer: { name: "কাউন্টার" } })
     await Promise.all([order.save(), ...jobs.map((job) => job.save())])
     await placeOrder(order._id, ["draft", "pending_payment"])

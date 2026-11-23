@@ -237,6 +237,8 @@ const printJobSchema = new Schema(
     kind: { type: String, enum: JOB_KINDS, default: "document" },
     // Selected page numbers (1-based); empty means every page.
     pages: { type: [Number], default: [] },
+    // A password-protected PDF: printed as it is, never laid out by the server (pages per sheet).
+    encrypted: { type: Boolean, default: false },
     // Pages shrunk onto one side of a sheet (1, 2 or 4). Above 1 the server lays the pages out itself when the
     // agent downloads the file, so the agent prints the result as is.
     perSheet: { type: Number, default: 1 },

@@ -113,7 +113,7 @@ export function IdCardTool({ open, onOpenChange, onDone }: { open: boolean; onOp
       title="NID / আইডি কার্ড কপি"
       description="কার্ডের ছবি দিন: সামনে ও পেছনে। আসল মাপে এক পাতায় প্রিন্ট হবে।"
       footer={
-        <Button className="h-11 w-full" disabled={!t.front || !!t.editing || t.building} onClick={t.finish}>
+        <Button className="h-11 w-full" disabled={!t.front || !!t.editing || t.building || t.maxSets < 1} onClick={t.finish}>
           {t.building && <Spinner />} অর্ডারে যোগ করুন
         </Button>
       }
@@ -198,9 +198,12 @@ export function IdCardTool({ open, onOpenChange, onDone }: { open: boolean; onOp
             onChange={t.setScale}
             options={[
               { value: 1, label: "আসল মাপ" },
-              { value: 1.5, label: "বড় করে (১.৫ গুণ)" },
+              { value: 1.5, label: "বড় করে (১.৫ গুণ)", disabled: !t.largeFits },
             ]}
           />
+          {t.maxSets < 1 && (
+            <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">এই মাপের কার্ড A4 পাতায় আঁটে না। মাপ বা সাইজ ছোট করুন।</p>
+          )}
           <ChoiceRow<number>
             label="এক পাতায় কয় কপি"
             value={t.sets}

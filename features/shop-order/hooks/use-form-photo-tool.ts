@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { toast } from "sonner"
 import { replaceBackground } from "../lib/background"
 import { applyLook, canvas, cropTo, detectQuad, downloadBlob, jpegUnder, loadImage, quadSize, warpQuad, type Quad } from "../lib/imaging"
@@ -59,6 +59,7 @@ export function useFormPhotoTool() {
   const [editingSign, setEditingSign] = useState(false)
   const [results, setResults] = useState<{ photo?: FormResult; sign?: FormResult }>({})
   const [busy, setBusy] = useState<"photo" | "sign" | "white" | null>(null)
+  const whiteRequest = useRef(0)
 
   function setPreset(next: FormPreset) {
     setPresetState(next)
@@ -68,6 +69,8 @@ export function useFormPhotoTool() {
   }
 
   async function pickPhoto(file: File) {
+    whiteRequest.current++
+    setBusy(null)
     try {
       const image = await loadImage(file, 1600)
       setPhoto({ original: image, image, view: initialCropView(image), white: false })
@@ -79,14 +82,21 @@ export function useFormPhotoTool() {
 
   async function setWhite(white: boolean) {
     if (!photo) return
-    if (!white) return setPhoto({ ...photo, image: photo.original, white })
+    const { original } = photo
+    // Only the newest choice for the same photo counts; the crop the customer set meanwhile is kept.
+    const id = ++whiteRequest.current
+    if (!white) {
+      setBusy(null)
+      return setPhoto((p) => (p ? { ...p, image: p.original, white } : p))
+    }
     setBusy("white")
     try {
-      setPhoto({ ...photo, image: await replaceBackground(photo.original, "#ffffff"), white })
+      const image = await replaceBackground(original, "#ffffff")
+      if (id === whiteRequest.current) setPhoto((p) => (p?.original === original ? { ...p, image, white } : p))
     } catch (error) {
-      toast.error((error as Error).message)
+      if (id === whiteRequest.current) toast.error((error as Error).message)
     } finally {
-      setBusy(null)
+      if (id === whiteRequest.current) setBusy(null)
     }
   }
 

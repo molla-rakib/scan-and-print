@@ -95,6 +95,9 @@ export async function POST(request: Request) {
     throw error
   }
 
+  // A photo sheet is one A4 page made by the photo tool; anything else is a document at document prices.
+  if (kind === "photo-sheet" && prepared.pageCount !== 1) return jsonError("পাসপোর্ট ছবির পাতা একটিই হয়", 422)
+
   const fileName = originalName.trim().slice(0, 200) || (prepared.kind === "pdf" ? "document.pdf" : `photo.${prepared.kind}`)
   const fileKey = await saveFile(prepared.pdf, fileName, shop.id)
   try {
@@ -117,6 +120,7 @@ export async function POST(request: Request) {
       fileKey,
       fileName,
       kind,
+      encrypted: prepared.encrypted,
       fileSize: prepared.pdf.length,
       pageCount: prepared.pageCount,
       printPages: prepared.pageCount,
@@ -125,7 +129,7 @@ export async function POST(request: Request) {
     })
     // Keep every file of the order alive as long as the newest one.
     await PrintJob.updateMany({ orderId: order._id, status: "draft" }, { $set: { draftExpiresAt: expiresAt } })
-    return NextResponse.json({ order: order.publicId, file: { id: job.id, pageCount: prepared.pageCount } })
+    return NextResponse.json({ order: order.publicId, file: { id: job.id, pageCount: prepared.pageCount, encrypted: prepared.encrypted } })
   } catch (error) {
     await deleteFile(fileKey).catch(() => {})
     throw error
