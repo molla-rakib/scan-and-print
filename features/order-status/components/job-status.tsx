@@ -20,6 +20,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Separator } from "@/components/ui/separator"
 import {
   COLOR_MODE_LABELS,
+  JOB_KIND_LABELS,
   PAPER_SIZE_LABELS,
   PAYMENT_METHOD_LABELS,
   QUEUE_EXPIRY_HOURS,
@@ -171,10 +172,14 @@ export function JobStatusView({ initial, paymentResult }: { initial: PublicOrder
             <li key={file.id} className="flex items-start justify-between gap-3 text-sm">
               <div className="min-w-0">
                 <div className="truncate font-medium">{file.fileName}</div>
+                {file.kind !== "document" && (
+                  <div className="text-xs font-medium text-emerald-700 dark:text-emerald-400">{JOB_KIND_LABELS[file.kind]}</div>
+                )}
                 <div className="text-xs text-muted-foreground">
                   {file.pagesLabel === "সব পৃষ্ঠা" ? `${formatNumber(file.pageCount)} পৃষ্ঠা` : `পৃষ্ঠা ${file.pagesLabel}`} ×{" "}
                   {formatNumber(file.copies)} কপি · {COLOR_MODE_LABELS[file.colorMode]}
                   {file.duplex && ` · ${SIDES_LABELS.both}`}
+                  {file.perSheet > 1 && ` · পাতায় ${formatNumber(file.perSheet)}টি`}
                   {file.paperSize !== "A4" && ` · ${PAPER_SIZE_LABELS[file.paperSize]}`}
                 </div>
                 {job.files.length > 1 && job.status !== "pending_payment" && (

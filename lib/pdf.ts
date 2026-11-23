@@ -42,6 +42,39 @@ async function imageToPdf(bytes: Buffer, kind: "jpg" | "png") {
 }
 
 /**
+ * Lays `pages` (1-based; empty = every page) of a PDF out 2 or 4 to a side of A4: two side by side on a
+ * landscape page, or a 2 × 2 grid on a portrait page, each shrunk to fit its half or quarter.
+ */
+export async function pagesPerSheetPdf(bytes: Uint8Array, pages: number[], perSheet: number) {
+  const source = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false })
+  const numbers = pages.length ? pages : source.getPageIndices().map((i) => i + 1)
+  const doc = await PDFDocument.create()
+  const embedded = await doc.embedPages(numbers.map((n) => source.getPage(n - 1)))
+  const landscape = perSheet === 2
+  const [width, height] = landscape ? [A4.height, A4.width] : [A4.width, A4.height]
+  const [cols, rows] = perSheet === 2 ? [2, 1] : [2, 2]
+  const gap = 12
+  const cellW = (width - IMAGE_MARGIN * 2 - gap * (cols - 1)) / cols
+  const cellH = (height - IMAGE_MARGIN * 2 - gap * (rows - 1)) / rows
+
+  for (let start = 0; start < embedded.length; start += perSheet) {
+    const sheet = doc.addPage([width, height])
+    embedded.slice(start, start + perSheet).forEach((page, i) => {
+      const col = i % cols
+      const row = Math.floor(i / cols)
+      const scale = Math.min(cellW / page.width, cellH / page.height)
+      const w = page.width * scale
+      const h = page.height * scale
+      const x = IMAGE_MARGIN + col * (cellW + gap) + (cellW - w) / 2
+      // PDF y runs upwards: the first row is the top one.
+      const y = height - IMAGE_MARGIN - (row + 1) * cellH - row * gap + (cellH - h) / 2
+      sheet.drawPage(page, { x, y, width: w, height: h })
+    })
+  }
+  return Buffer.from(await doc.save())
+}
+
+/**
  * Validates an uploaded PDF or photo (JPG/PNG) and returns a printable PDF. Photos become one A4 page.
  * Throws InvalidPdfError with a Bangla message for anything else.
  */

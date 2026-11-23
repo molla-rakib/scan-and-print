@@ -1,4 +1,4 @@
-import { PAPER_SIZE_LABELS, filePrice, type ColorMode, type PaperSize } from "@/lib/constants"
+import { PAPER_SIZE_LABELS, filePrice, printedSides, type ColorMode, type JobKind, type PagesPerSheet, type PaperSize } from "@/lib/constants"
 import type { PublicShopView } from "@/lib/public-shop"
 
 export type PrintOptions = {
@@ -8,11 +8,15 @@ export type PrintOptions = {
   paperSize: PaperSize
   /** Selected pages; empty means every page. */
   pages: number[]
+  /** Pages shrunk onto one side of a sheet. */
+  perSheet: PagesPerSheet
 }
 
 export type FileItem = {
   key: string
   file: File
+  /** Which tool made the file; plain uploads are documents. */
+  kind: JobKind
   state: "waiting" | "uploading" | "analyzing" | "ready" | "error"
   progress: number
   error?: string
@@ -26,8 +30,19 @@ export function paperOf(shop: PublicShopView, options: PrintOptions) {
   return shop.papers.find((p) => p.size === options.paperSize) ?? shop.papers[0]
 }
 
-export function printedPages(item: FileItem) {
+/** Pages the customer picked (or every page). */
+export function selectedPages(item: FileItem) {
   return item.options.pages.length || item.pageCount || 0
+}
+
+/** Whether 2 or 4 pages per sheet can be chosen: documents and scans with more than one page. */
+export function perSheetAvailable(item: FileItem) {
+  return (item.kind === "document" || item.kind === "scan") && selectedPages(item) > 1
+}
+
+/** Sides that print: picked pages divided onto the pages-per-sheet layout. */
+export function printedPages(item: FileItem) {
+  return printedSides(selectedPages(item), perSheetAvailable(item) ? item.options.perSheet : 1)
 }
 
 /** Whether a printer in the shop can print both sides in this color on this paper size. */
@@ -49,10 +64,20 @@ export function sidesNote(shop: PublicShopView, options: PrintOptions) {
 
 /** The options as they will be ordered: "both sides" is dropped when it no longer applies. */
 export function effectiveOptions(shop: PublicShopView, item: FileItem): PrintOptions {
-  return { ...item.options, duplex: item.options.duplex && duplexAvailable(shop, item) }
+  return {
+    ...item.options,
+    perSheet: perSheetAvailable(item) ? item.options.perSheet : 1,
+    // NID copies and photo sheets are laid out on A4.
+    paperSize: item.kind === "document" || item.kind === "scan" ? item.options.paperSize : "A4",
+    duplex: item.options.duplex && duplexAvailable(shop, item),
+  }
 }
 
 export function fileTotal(shop: PublicShopView, item: FileItem) {
+  // A photo sheet costs the shop's photo price per sheet, whatever the other options say.
+  if (item.kind === "photo-sheet") {
+    return Math.round((shop.photoSheetPrice ?? 0) * (item.pageCount ?? 0) * item.options.copies * 100) / 100
+  }
   const options = effectiveOptions(shop, item)
   return filePrice(paperOf(shop, options), options, printedPages(item))
 }

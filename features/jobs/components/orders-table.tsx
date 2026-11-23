@@ -2,6 +2,7 @@ import { JobStatusBadge } from "@/components/job-status-badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   COLOR_MODE_LABELS,
+  JOB_KIND_LABELS,
   PAPER_SIZE_LABELS,
   PAYMENT_METHOD_LABELS,
   SIDES_LABELS,
@@ -11,6 +12,7 @@ import {
   formatTaka,
   formatToken,
   type ColorMode,
+  type JobKind,
   type JobStatus,
   type PaperSize,
   type PaymentMethod,
@@ -56,12 +58,16 @@ export function OrdersTable({
                     <li key={job.id}>
                       <div className="min-w-0">
                         <div className="truncate font-medium">{job.fileName}</div>
+                        {job.kind && job.kind !== "document" && (
+                          <div className="text-xs font-medium text-emerald-700 dark:text-emerald-400">{JOB_KIND_LABELS[job.kind as JobKind]}</div>
+                        )}
                         <div className="text-xs text-muted-foreground">
                           {job.pages.length
                             ? `পৃষ্ঠা ${formatPageSelection(job.pages, job.pageCount)}`
                             : `${formatNumber(job.pageCount)} পৃষ্ঠা`}{" "}
                           × {formatNumber(job.copies)} কপি · {COLOR_MODE_LABELS[job.colorMode as ColorMode]}
                           {job.duplex && ` · ${SIDES_LABELS.both}`}
+                          {(job.perSheet ?? 1) > 1 && ` · পাতায় ${formatNumber(job.perSheet)}টি`}
                           {job.paperSize !== "A4" && ` · ${PAPER_SIZE_LABELS[job.paperSize as PaperSize]}`}
                           {job.deviceId && <span className="hidden lg:inline"> · {deviceName(job.deviceId)}</span>}
                         </div>

@@ -9,7 +9,9 @@ import {
   effectiveOptions,
   fileTotal,
   paperOf,
+  perSheetAvailable,
   printedPages,
+  selectedPages,
   sidesNote,
   type FileItem,
   type PrintOptions,
@@ -45,6 +47,12 @@ export function useFileCard(item: FileItem, shop: PublicShopView, disabled: bool
     duplex,
     unitHint,
     printed: printedPages(item),
+    selected: selectedPages(item),
+    // Photo sheets have a fixed price and layout: only the number of copies is up to the customer.
+    photoSheet: item.kind === "photo-sheet",
+    // Tool-made layouts (NID copy, photo sheet) are A4 pages; only documents and scans pick a paper size.
+    sizeChoice: (item.kind === "document" || item.kind === "scan") && shop.papers.length > 1,
+    perSheetChoice: perSheetAvailable(item),
     total: fileTotal(shop, item),
     sidesNote: sidesNote(shop, options),
   }

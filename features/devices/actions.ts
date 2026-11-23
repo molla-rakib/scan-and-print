@@ -60,6 +60,8 @@ export async function removeAgent(agentId: string): Promise<ActionResult> {
 const deviceSchema = z.object({
   name: z.string().trim().min(1).max(60).optional(),
   color: z.boolean().optional(),
+  // Photo paper loaded: passport photo sheets go here (a photo printer is a color printer).
+  photo: z.boolean().optional(),
   enabled: z.boolean().optional(),
 })
 
@@ -79,6 +81,8 @@ export async function updateDevice(deviceId: string, input: z.input<typeof devic
   }
 
   device.set(parsed.data)
+  if (parsed.data.photo) device.color = true
+  if (parsed.data.color === false) device.photo = false
   await device.save()
   refresh()
   return { ok: true }

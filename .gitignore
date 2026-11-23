@@ -46,3 +46,6 @@ next-env.d.ts
 
 # rust print agent build output
 /agent/target
+
+# MediaPipe runtime, copied from node_modules by scripts/copy-mediapipe.mjs
+/public/mediapipe/vision_wasm_internal.*

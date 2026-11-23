@@ -1,22 +1,28 @@
 "use client"
 
-import { ArrowDownIcon, FilePlusIcon, ImageIcon, TriangleAlertIcon, UploadIcon, WalletIcon } from "lucide-react"
+import { ArrowDownIcon, BanknoteIcon, FilePlusIcon, ImageIcon, StoreIcon, TriangleAlertIcon, UploadIcon, WalletIcon } from "lucide-react"
 import { BkashButton } from "@/components/bkash"
 import { CashCheckout } from "@/components/cash-checkout"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Spinner } from "@/components/ui/spinner"
 import { MAX_FILES_PER_ORDER, PAPER_SIZE_LABELS, QUEUE_EXPIRY_HOURS, formatNumber, formatTaka } from "@/lib/constants"
 import type { PublicShopView } from "@/lib/public-shop"
 import { cn } from "@/lib/utils"
 import { usePrintFlow } from "../hooks/use-print-flow"
 import { FileCard } from "./file-card"
+import { ToolsGrid } from "./tools/tools-grid"
 
 // Separate pickers: on Android, an input that accepts images opens the photo picker, which hides PDFs.
 const ACCEPT_PDF = "application/pdf,.pdf"
 const ACCEPT_IMAGES = "image/jpeg,image/png"
 
-export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUploadMb: number }) {
+/**
+ * The customer's order on the shop page. `counter` is the shop itself taking an order at the counter (the
+ * owner, signed in, opened the page from the dashboard): cash, no customer details.
+ */
+export function PrintFlow({ shop, maxUploadMb, counter }: { shop: PublicShopView; maxUploadMb: number; counter: boolean }) {
   const {
     inputRef,
     imageInputRef,
@@ -36,7 +42,16 @@ export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUplo
     checkout,
     dropHandlers,
     scrollToPayment,
-  } = usePrintFlow(shop, maxUploadMb)
+  } = usePrintFlow(shop, maxUploadMb, counter)
+  const tools = (compact: boolean) => (
+    <ToolsGrid photoSheetPrice={shop.photoSheetPrice} disabled={!!paying} compact={compact} onFile={(file, kind, color) => addFiles([file], kind, color)} />
+  )
+  const counterNote = counter && (
+    <Alert>
+      <StoreIcon />
+      <AlertDescription>কাউন্টার অর্ডার: পেন ড্রাইভ বা কম্পিউটারের ফাইল দিন। ক্যাশে নেওয়া হবে, গ্রাহকের নাম-নম্বর লাগবে না।</AlertDescription>
+    </Alert>
+  )
 
   const fileInputs = (
     <>
@@ -110,6 +125,11 @@ export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUplo
             <ImageIcon /> ছবি প্রিন্ট করুন (JPG, PNG)
           </Button>
           {fileInputs}
+          {counterNote}
+          <div className="flex flex-col gap-2 pt-2">
+            <span className="text-sm font-medium">আরও সেবা</span>
+            {tools(false)}
+          </div>
         </CardContent>
       </Card>
     )
@@ -150,6 +170,8 @@ export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUplo
         </div>
       )}
       {fileInputs}
+      {items.length < MAX_FILES_PER_ORDER && tools(true)}
+      {counterNote}
 
       <Card ref={paymentRef} className="scroll-mt-4 ring-2 ring-primary/20">
         <CardHeader>
@@ -168,6 +190,12 @@ export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUplo
           </div>
         </CardContent>
         <CardFooter className="flex-col gap-2">
+          {counter ? (
+            <Button size="lg" className="h-12 w-full text-base" disabled={!canPay} onClick={() => checkout("cash")}>
+              {paying === "cash" ? <Spinner /> : <BanknoteIcon />} কাউন্টার অর্ডার দিন (ক্যাশ)
+            </Button>
+          ) : (
+            <>
           {shop.payments.bkash && (
             <BkashButton label="দিয়ে পেমেন্ট করুন" pending={paying === "bkash"} disabled={!canPay} onClick={() => checkout("bkash")} />
           )}
@@ -180,6 +208,8 @@ export function PrintFlow({ shop, maxUploadMb }: { shop: PublicShopView; maxUplo
               disabled={!canPay}
               onSubmit={(customer) => checkout("cash", customer)}
             />
+          )}
+            </>
           )}
         </CardFooter>
       </Card>

@@ -9,15 +9,15 @@ import { env } from "@/lib/env"
 import { PrintFlow } from "./components/print-flow"
 import { shopOrderView } from "./queries"
 
-type Props = { params: Promise<{ slug: string }> }
+type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ counter?: string }> }
 
 /** /s/[slug]: the customer uploads files, picks how they print and pays. */
-export function ShopOrderPage({ params }: Props) {
+export function ShopOrderPage({ params, searchParams }: Props) {
   return (
     <div className="flex min-h-svh flex-col bg-muted/40">
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 p-4 pt-6">
         <Suspense fallback={<Skeleton className="h-[480px]" />}>
-          <Shop params={params} />
+          <Shop params={params} searchParams={searchParams} />
         </Suspense>
       </main>
       <footer className="flex justify-center py-6 text-xs text-muted-foreground">
@@ -27,11 +27,12 @@ export function ShopOrderPage({ params }: Props) {
   )
 }
 
-async function Shop({ params }: Props) {
+async function Shop({ params, searchParams }: Props) {
   // Shop data must be fresh on every request (open/closed, printers online).
   await connection()
-  const view = await shopOrderView((await params).slug)
-  if (!view) notFound()
+  const found = await shopOrderView((await params).slug, (await searchParams).counter === "1")
+  if (!found) notFound()
+  const { view, counter } = found
 
   return (
     <>
@@ -51,7 +52,7 @@ async function Shop({ params }: Props) {
       </div>
 
       {view.open && (view.payments.bkash || view.payments.cash) ? (
-        <PrintFlow shop={view} maxUploadMb={Math.round(env.maxUploadBytes / 1024 / 1024)} />
+        <PrintFlow shop={view} counter={counter} maxUploadMb={Math.round(env.maxUploadBytes / 1024 / 1024)} />
       ) : (
         <Card>
           <CardHeader>

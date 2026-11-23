@@ -3,7 +3,7 @@ import { connection } from "next/server"
 import { shopMetadataInfo } from "@/features/shop-order/queries"
 import { ShopOrderPage } from "@/features/shop-order/shop-order-page"
 
-type Props = { params: Promise<{ slug: string }> }
+type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ counter?: string }> }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   await connection()
@@ -32,6 +32,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-export default function ShopPage({ params }: Props) {
-  return <ShopOrderPage params={params} />
+export default function ShopPage({ params, searchParams }: Props) {
+  return <ShopOrderPage params={params} searchParams={searchParams} />
 }

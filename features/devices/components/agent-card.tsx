@@ -72,7 +72,7 @@ export function AgentCard({ agent, online, devices: agentDevices }: AgentWithDev
                       <StatusDot online={online} label={online ? "প্রস্তুত" : "অফলাইন"} />
                     )}
                   </TableCell>
-                  <DeviceControls device={{ id: device.id, name: device.name, color: device.color, enabled: device.enabled }} />
+                  <DeviceControls device={{ id: device.id, name: device.name, color: device.color, photo: device.photo, enabled: device.enabled }} />
                 </TableRow>
               ))}
             </TableBody>

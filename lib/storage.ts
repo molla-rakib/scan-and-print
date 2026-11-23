@@ -17,9 +17,9 @@ function toId(key: string) {
   return new mongoose.Types.ObjectId(key)
 }
 
-/** Stores a PDF and returns its key. */
-export async function saveFile(data: Buffer, fileName: string, shopId: string): Promise<string> {
-  const upload = (await bucket()).openUploadStream(fileName, { metadata: { shopId, contentType: "application/pdf" } })
+/** Stores a file (a PDF unless said otherwise) and returns its key. */
+export async function saveFile(data: Buffer, fileName: string, shopId: string, contentType = "application/pdf"): Promise<string> {
+  const upload = (await bucket()).openUploadStream(fileName, { metadata: { shopId, contentType } })
   await new Promise<void>((resolve, reject) => {
     Readable.from([data]).pipe(upload).on("finish", resolve).on("error", reject)
   })
@@ -30,6 +30,13 @@ export async function saveFile(data: Buffer, fileName: string, shopId: string): 
 export async function openFile(key: string): Promise<ReadableStream<Uint8Array>> {
   const stream = (await bucket()).openDownloadStream(toId(key))
   return Readable.toWeb(stream) as ReadableStream<Uint8Array>
+}
+
+/** The whole file in memory, for files that are changed before sending (pages per sheet). */
+export async function readFile(key: string): Promise<Buffer> {
+  const chunks: Buffer[] = []
+  for await (const chunk of (await bucket()).openDownloadStream(toId(key))) chunks.push(chunk as Buffer)
+  return Buffer.concat(chunks)
 }
 
 export async function deleteFile(key: string) {
@@ -58,5 +65,6 @@ export async function sweepOrphanFiles() {
   const inUse = new Set(
     (await PrintJob.find({ fileKey: { $in: keys }, fileDeleted: false }, { fileKey: 1 }).lean()).map((job) => job.fileKey)
   )
+  // Transfer files are deleted when their session closes; any left over are orphans too.
   for (const key of keys) if (!inUse.has(key)) await deleteFile(key)
 }

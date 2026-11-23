@@ -96,6 +96,32 @@ pub struct Job {
     pub paper_size: Option<String>,
 }
 
+/// A counter transfer the agent opened (`/api/agent/transfers`).
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransferOpened {
+    pub id: String,
+    pub url: String,
+    /// The link as a QR code (SVG) for the counter window.
+    pub qr_svg: String,
+}
+
+#[derive(Deserialize)]
+pub struct TransferState {
+    pub open: bool,
+    pub files: Vec<TransferFile>,
+}
+
+#[derive(Deserialize)]
+pub struct TransferFile {
+    pub id: String,
+    pub name: String,
+    /// "shop" (our scans) or "customer" (files the phone sent).
+    pub from: String,
+    pub fetched: bool,
+    pub available: bool,
+}
+
 pub struct Client {
     http: ureq::Agent,
     server: String,
@@ -155,6 +181,57 @@ impl Client {
         io::copy(&mut reader, &mut file).map_err(network)
     }
 
+    /// Opens a counter transfer: "scan" sends this PC's scans to a phone, "receive" brings a phone's files here.
+    pub fn open_transfer(&self, kind: &str) -> Result<TransferOpened, ApiError> {
+        self.post("/api/agent/transfers", &serde_json::json!({ "kind": kind }))
+    }
+
+    pub fn transfer_state(&self, id: &str) -> Result<TransferState, ApiError> {
+        let response = self.authorized(self.http.get(format!("{}/api/agent/transfers/{id}", self.server))).call().map_err(network)?;
+        check_status(response)?.body_mut().read_json().map_err(network)
+    }
+
+    /// Sends one scanned file to a "scan" transfer.
+    pub fn send_scan(&self, id: &str, name: &str, path: &Path) -> Result<(), ApiError> {
+        let data = std::fs::read(path).map_err(network)?;
+        let url = format!("{}/api/agent/transfers/{id}/files?name={}", self.server, percent_encode(name));
+        let response = self
+            .authorized(self.http.post(url))
+            .header("Content-Type", "application/octet-stream")
+            .send(&data[..])
+            .map_err(network)?;
+        check_status(response).map(|_| ())
+    }
+
+    /// Downloads a file the customer sent to `dest`.
+    pub fn fetch_transfer_file(&self, id: &str, file_id: &str, dest: &Path) -> Result<u64, ApiError> {
+        let url = format!("{}/api/agent/transfers/{id}/files/{file_id}", self.server);
+        let response = self.authorized(self.http.get(url)).call().map_err(network)?;
+        let response = check_status(response)?;
+        let mut reader = response.into_body().into_with_config().limit(MAX_FILE_BYTES).reader();
+        let mut file = File::create(dest).map_err(network)?;
+        io::copy(&mut reader, &mut file).map_err(network)
+    }
+
+    /// Tells the server a customer's file is saved here, so it deletes its copy.
+    pub fn ack_transfer_file(&self, id: &str, file_id: &str) -> Result<(), ApiError> {
+        let url = format!("{}/api/agent/transfers/{id}/files/{file_id}", self.server);
+        check_status(self.authorized(self.http.delete(url)).call().map_err(network)?).map(|_| ())
+    }
+
+    /// Ends a transfer; the server deletes its files.
+    pub fn close_transfer(&self, id: &str) -> Result<(), ApiError> {
+        let url = format!("{}/api/agent/transfers/{id}", self.server);
+        check_status(self.authorized(self.http.delete(url)).call().map_err(network)?).map(|_| ())
+    }
+
+    fn authorized<B>(&self, request: ureq::RequestBuilder<B>) -> ureq::RequestBuilder<B> {
+        match &self.token {
+            Some(token) => request.header("Authorization", format!("Bearer {token}")),
+            None => request,
+        }
+    }
+
     fn post<T: DeserializeOwned>(&self, path: &str, body: &impl Serialize) -> Result<T, ApiError> {
         let mut request = self.http.post(format!("{}{path}", self.server));
         if let Some(token) = &self.token {
@@ -164,6 +241,17 @@ impl Client {
         let mut response = check_status(response)?;
         response.body_mut().read_json().map_err(network)
     }
+}
+
+/// Percent-encodes a query value (file names may be Bangla or have spaces).
+fn percent_encode(value: &str) -> String {
+    value
+        .bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
 }
 
 fn check_status(mut response: ureq::http::Response<ureq::Body>) -> Result<ureq::http::Response<ureq::Body>, ApiError> {

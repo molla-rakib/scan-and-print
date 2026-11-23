@@ -1,6 +1,7 @@
 import "server-only"
 import { requireShop } from "@/lib/auth"
-import type { BkashInitial, CashSettings, Pricing, ProfileSettings } from "./types"
+import { Device } from "@/lib/models"
+import type { BkashInitial, CashSettings, PhotoSettings, Pricing, ProfileSettings } from "./types"
 
 /** The shop's name, link, address and phone for the profile form. */
 export async function getProfileSettings(): Promise<ProfileSettings> {
@@ -26,6 +27,13 @@ export async function getPricingSettings(): Promise<Pricing> {
       A3: { enabled: shop.paperSizes.A3.enabled, ...prices(shop.paperSizes.A3) },
     },
   }
+}
+
+/** Passport photo sheet settings, and whether an enabled color printer can print them. */
+export async function getPhotoSettings(): Promise<PhotoSettings> {
+  const { shop } = await requireShop()
+  const hasColorPrinter = Boolean(await Device.exists({ shopId: shop._id, enabled: true, color: true }))
+  return { enabled: shop.photo?.enabled ?? false, sheetPrice: shop.photo?.sheetPrice ?? 40, hasColorPrinter }
 }
 
 /** The shop's cash and bKash settings for the payment forms (secrets only as "is set"). */

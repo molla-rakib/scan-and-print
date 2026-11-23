@@ -3,19 +3,19 @@
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import type { CashCustomer } from "@/components/cash-checkout"
-import { MAX_FILES_PER_ORDER, formatNumber, type PaymentMethod } from "@/lib/constants"
+import { MAX_FILES_PER_ORDER, formatNumber, type JobKind, type PaymentMethod } from "@/lib/constants"
 import type { PublicShopView } from "@/lib/public-shop"
 import { effectiveOptions, fileTotal, printedPages, type FileItem, type PrintOptions } from "../lib/file-options"
 import { prepareImageForUpload } from "../lib/prepare-image"
 import { isImageFile } from "../lib/preview"
 import { postJson, uploadFile } from "../lib/upload"
 
-const DEFAULT_OPTIONS: PrintOptions = { colorMode: "bw", copies: 1, duplex: false, paperSize: "A4", pages: [] }
+const DEFAULT_OPTIONS: PrintOptions = { colorMode: "bw", copies: 1, duplex: false, paperSize: "A4", pages: [], perSheet: 1 }
 
 /**
  * The customer's order: picked files, their uploads into one draft order, the running total and checkout.
  */
-export function usePrintFlow(shop: PublicShopView, maxUploadMb: number) {
+export function usePrintFlow(shop: PublicShopView, maxUploadMb: number, counter: boolean) {
   const inputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
@@ -63,6 +63,7 @@ export function usePrintFlow(shop: PublicShopView, maxUploadMb: number) {
           const result = await uploadFile(
             shop.slug,
             file,
+            next.kind,
             orderRef.current,
             (progress) => patch(next.key, { progress }),
             () => patch(next.key, { state: "analyzing" })
@@ -78,7 +79,8 @@ export function usePrintFlow(shop: PublicShopView, maxUploadMb: number) {
     }
   }
 
-  function addFiles(list: FileList | null | undefined) {
+  /** Adds picked files (documents), or a file a tool on the page made (NID copy, scan, photo sheet). */
+  function addFiles(list: FileList | File[] | null | undefined, kind: JobKind = "document", color?: boolean) {
     const files = Array.from(list ?? [])
     for (const input of [inputRef.current, imageInputRef.current]) if (input) input.value = ""
     if (!files.length) return
@@ -93,6 +95,7 @@ export function usePrintFlow(shop: PublicShopView, maxUploadMb: number) {
       added.push({
         key: crypto.randomUUID(),
         file,
+        kind,
         state: supported && !tooBig ? "waiting" : "error",
         error: !supported
           ? "শুধু PDF, JPG বা PNG ফাইল দেওয়া যাবে।"
@@ -100,7 +103,8 @@ export function usePrintFlow(shop: PublicShopView, maxUploadMb: number) {
             ? `ফাইলটি অনেক বড়। সর্বোচ্চ ${formatNumber(maxUploadMb)} MB।`
             : undefined,
         progress: 0,
-        options: DEFAULT_OPTIONS,
+        // Photo sheets always print in color; a tool's color result (a color NID copy or scan) starts in color.
+        options: { ...DEFAULT_OPTIONS, colorMode: kind === "photo-sheet" || (color && shop.hasColor) ? "color" : "bw" },
       })
     }
     update((list) => [...list, ...added])
@@ -130,6 +134,7 @@ export function usePrintFlow(shop: PublicShopView, maxUploadMb: number) {
         files: ready.map((item) => ({ id: item.id, ...effectiveOptions(shop, item) })),
         method,
         customer,
+        counter: counter || undefined,
       })
       window.location.assign(redirectUrl)
     } catch (error) {

@@ -28,7 +28,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: crawlers,
       allow: "/",
-      disallow: ["/dashboard", "/onboarding", "/login", "/api/", "/j/"],
+      disallow: ["/dashboard", "/onboarding", "/login", "/api/", "/j/", "/t/"],
     },
     sitemap: siteUrl("/sitemap.xml"),
   }

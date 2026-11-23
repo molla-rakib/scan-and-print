@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<style>/*STYLE*/
+  .choice {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+    width: 100%; min-height: 0; padding: 14px 16px; text-align: left;
+    border-radius: 12px; line-height: 1.4;
+  }
+  .choice .title { font-size: 16px; font-weight: 700; color: var(--primary); }
+  .choice .desc { font-size: 13px; font-weight: 400; color: var(--muted-fg); }
+  .folder { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted-fg); }
+  .folder code { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: inherit; }
+  .folder button { min-height: 30px; padding: 0 10px; font-size: 12px; }
+  .qr { align-self: center; width: 210px; height: 210px; padding: 8px; border: 1px solid var(--border); border-radius: 12px; background: #fff; }
+  .qr svg { width: 100%; height: 100%; display: block; }
+  .center { text-align: center; }
+  .muted { color: var(--muted-fg); font-size: 13px; margin: 0; }
+  ul.files { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  ul.files li {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+    border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px;
+  }
+  ul.files li .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  ul.files li .tag { font-size: 12px; color: var(--success); white-space: nowrap; }
+  ul.files li.error .tag { color: var(--danger); }
+  ul.files li button { min-height: 28px; padding: 0 10px; font-size: 12px; }
+  .waiting { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--muted-fg); font-size: 13px; }
+</style>
+</head>
+<body>
+<header class="brand">
+  <!--LOGO-->
+  <div>
+    <div class="brand-name">মুদ্রণ</div>
+    <div class="brand-sub">কাউন্টার: স্ক্যান ও ফাইল</div>
+  </div>
+</header>
+<main>
+  <section id="home" style="display:grid; gap:12px">
+    <button type="button" class="choice" id="start-scan">
+      <span class="title">স্ক্যান করে গ্রাহকের ফোনে দিন</span>
+      <span class="desc">কপিয়ার বা স্ক্যানার নিচের ফোল্ডারে স্ক্যান রাখলে তা সাথে সাথে গ্রাহকের ফোনে চলে যাবে। পেন ড্রাইভ বা নিজের WhatsApp লাগবে না।</span>
+    </button>
+    <div class="folder"><code id="scan-dir">—</code><button type="button" data-folder="scan">ফোল্ডার খুলুন</button></div>
+    <button type="button" class="choice" id="start-receive">
+      <span class="title">গ্রাহকের ফোন থেকে ফাইল নিন</span>
+      <span class="desc">গ্রাহক QR স্ক্যান করে ফাইল পাঠাবেন, নিচের ফোল্ডারে চলে আসবে।</span>
+    </button>
+    <div class="folder"><code id="inbox-dir">—</code><button type="button" data-folder="inbox">ফোল্ডার খুলুন</button></div>
+    <div id="home-error" class="alert"></div>
+    <p class="muted">কপিয়ারের "Scan to Folder" বা স্ক্যানারের সফটওয়্যারে ওপরের স্ক্যান ফোল্ডারটি বেছে দিন, ফাইল PDF বা JPG রাখুন।</p>
+  </section>
+
+  <section id="starting" class="state hidden">
+    <span class="spinner" style="width:28px;height:28px"></span>
+    <p>QR তৈরি হচ্ছে…</p>
+  </section>
+
+  <section id="session" class="hidden" style="display:flex; flex-direction:column; gap:12px">
+    <h1 id="session-title" class="center"></h1>
+    <div id="qr" class="qr"></div>
+    <p id="session-hint" class="muted center"></p>
+    <div id="session-error" class="alert"></div>
+    <div id="waiting" class="waiting"><span class="spinner"></span><span id="waiting-text"></span></div>
+    <ul id="files" class="files"></ul>
+    <div class="row" style="margin-top:auto">
+      <button type="button" id="open-folder">ফোল্ডার খুলুন</button>
+      <button type="button" id="stop" class="primary">শেষ করুন</button>
+    </div>
+  </section>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id)
+  const send = (msg) => window.ipc && window.ipc.postMessage(JSON.stringify(msg))
+  document.addEventListener("contextmenu", (e) => e.preventDefault())
+  let kind = null
+
+  const show = (view) => {
+    for (const id of ["home", "starting", "session"]) $(id).classList.toggle("hidden", id !== view)
+  }
+  const fileRow = (name, tag, error, path) => {
+    const li = document.createElement("li")
+    if (error) li.className = "error"
+    const n = document.createElement("span")
+    n.className = "name"
+    n.textContent = name
+    const t = document.createElement("span")
+    t.className = "tag"
+    t.textContent = tag
+    li.append(n, t)
+    if (path) {
+      const b = document.createElement("button")
+      b.type = "button"
+      b.textContent = "খুলুন"
+      b.addEventListener("click", () => send({ type: "openFile", path }))
+      li.append(b)
+    }
+    $("files").prepend(li)
+    $("waiting").classList.add("hidden")
+  }
+
+  $("start-scan").addEventListener("click", () => start("scan"))
+  $("start-receive").addEventListener("click", () => start("receive"))
+  for (const b of document.querySelectorAll("[data-folder]")) b.addEventListener("click", () => send({ type: "openFolder", which: b.dataset.folder }))
+  $("open-folder").addEventListener("click", () => send({ type: "openFolder", which: kind === "scan" ? "scan" : "inbox" }))
+  $("stop").addEventListener("click", () => send({ type: "stopTransfer" }))
+
+  function start(next) {
+    kind = next
+    $("home-error").textContent = ""
+    show("starting")
+    send({ type: "startTransfer", kind: next })
+  }
+
+  // Called from Rust once the window is ready.
+  window.init = (s) => {
+    $("scan-dir").textContent = s.scanDir
+    $("inbox-dir").textContent = s.inboxDir
+    $("scan-dir").title = s.scanDir
+    $("inbox-dir").title = s.inboxDir
+  }
+
+  // Called from Rust for everything that happens in a session.
+  window.onTransfer = (e) => {
+    switch (e.type) {
+      case "opened":
+        $("session-title").textContent = e.kind === "scan" ? "গ্রাহককে QR স্ক্যান করতে বলুন" : "গ্রাহককে QR স্ক্যান করতে বলুন"
+        $("session-hint").textContent =
+          e.kind === "scan"
+            ? "ফোনে পেজ খোলার পর স্ক্যান করুন, প্রতিটি পাতা নিজে থেকেই গ্রাহকের ফোনে যাবে। ৩০ মিনিট পর বা শেষ করলে ফাইল মুছে যাবে।"
+            : "গ্রাহক ফোন থেকে ফাইল বেছে দিলে এই কম্পিউটারে চলে আসবে। ৩০ মিনিট পর সেশন শেষ হবে।"
+        $("waiting-text").textContent = e.kind === "scan" ? "স্ক্যানের অপেক্ষায়…" : "গ্রাহকের ফাইলের অপেক্ষায়…"
+        $("qr").innerHTML = /^<svg[\s>]/.test(e.qrSvg) && !/<script/i.test(e.qrSvg) ? e.qrSvg : ""
+        $("files").replaceChildren()
+        $("session-error").textContent = ""
+        $("waiting").classList.remove("hidden")
+        show("session")
+        break
+      case "sent":
+        fileRow(e.name, "ফোনে পাঠানো হয়েছে", false)
+        break
+      case "sendFailed":
+        fileRow(e.name, e.error, true)
+        break
+      case "received":
+        fileRow(e.name, "এসেছে", false, e.path)
+        break
+      case "failed":
+        if ($("session").classList.contains("hidden")) {
+          $("home-error").textContent = e.message
+          show("home")
+        } else {
+          $("session-error").textContent = e.message
+        }
+        break
+      case "closed":
+        kind = null
+        show("home")
+        break
+    }
+  }
+  send({ type: "ready" })
+</script>
+</body>
+</html>

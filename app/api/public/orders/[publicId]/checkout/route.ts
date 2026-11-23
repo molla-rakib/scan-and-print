@@ -4,6 +4,7 @@ import { jsonError, parseBody } from "@/lib/api"
 import { BkashError, createPayment, shopBkashCredentials } from "@/lib/bkash"
 import {
   MAX_COPIES,
+  PAGES_PER_SHEET,
   PAPER_SIZES,
   PAPER_SIZE_LABELS,
   cleanPages,
@@ -11,12 +12,14 @@ import {
   normalizeBdPhone,
   printerDuplexes,
   printerHasPaper,
+  printedSides,
   unitPrice,
 } from "@/lib/constants"
 import { connectDb } from "@/lib/db"
 import { env } from "@/lib/env"
-import { cashFields, colorDuplexAllowed, paperPrices, paymentOptions, placeOrder, shopIsOpen } from "@/lib/jobs"
+import { cashFields, colorDuplexAllowed, paperPrices, paymentOptions, photoSheetPrice, placeOrder, shopIsOpen } from "@/lib/jobs"
 import { Device, Order, PrintJob, Shop } from "@/lib/models"
+import { getSession } from "@/lib/session"
 
 const fileSchema = z.object({
   id: z.string(),
@@ -26,6 +29,8 @@ const fileSchema = z.object({
   pages: z.array(z.number().int().min(1)).max(5000).default([]),
   duplex: z.boolean().default(false),
   paperSize: z.enum(PAPER_SIZES).default("A4"),
+  // Pages shrunk onto one side of a sheet (documents and scans only).
+  perSheet: z.union(PAGES_PER_SHEET.map((n) => z.literal(n))).default(1),
 })
 
 const schema = z.object({
@@ -38,6 +43,8 @@ const schema = z.object({
       phone: z.string().trim().max(20),
     })
     .optional(),
+  // Placed at the counter by the shop itself (signed in as the owner): cash with no customer details.
+  counter: z.boolean().optional(),
 })
 
 const round = (amount: number) => Math.round(amount * 100) / 100
@@ -71,6 +78,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ pub
 
     for (const job of jobs) {
       const options = body.files.find((f) => f.id === job.id)!
+
+      // A photo sheet is one color A4 sheet per page at the shop's photo price; only the copies are the customer's.
+      if (job.kind === "photo-sheet") {
+        const price = photoSheetPrice(shop)
+        if (price === null) return jsonError("এই দোকানে পাসপোর্ট ছবি প্রিন্ট চালু নেই")
+        if (!enabled.some((d) => d.color)) return jsonError("এই দোকানে রঙিন প্রিন্ট পাওয়া যায় না")
+        job.set({
+          colorMode: "color",
+          copies: options.copies,
+          pages: [],
+          perSheet: 1,
+          printPages: job.pageCount,
+          duplex: false,
+          paperSize: "A4",
+          pricePerPage: price,
+          amount: round(price * job.pageCount * options.copies),
+        })
+        continue
+      }
       if (options.colorMode === "color" && !enabled.some((d) => d.color)) return jsonError("এই দোকানে রঙিন প্রিন্ট পাওয়া যায় না")
       if (options.duplex) {
         const size = options.paperSize
@@ -88,7 +114,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ pub
       let pages = cleanPages(options.pages, job.pageCount)
       if (options.pages.length > 0 && pages.length === 0) return jsonError(`"${job.fileName}" ফাইলের অন্তত একটি পৃষ্ঠা বাছুন`)
       if (pages.length === job.pageCount) pages = []
-      const printPages = pages.length || job.pageCount
+      // Several pages per sheet: for documents and scans only, and pointless for a single page.
+      const selected = pages.length || job.pageCount
+      const perSheet = ["document", "scan"].includes(job.kind ?? "document") && selected > 1 ? options.perSheet : 1
+      const printPages = printedSides(selected, perSheet)
       // A single page has no back side.
       const duplex = options.duplex && printPages > 1
 
@@ -96,6 +125,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pub
         colorMode: options.colorMode,
         copies: options.copies,
         pages,
+        perSheet,
         printPages,
         duplex,
         paperSize: options.paperSize,
@@ -111,6 +141,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ pub
   const statusPage = `${env.appUrl}/j/${order.publicId}`
   order.set({ amount, paymentMethod: body.method })
   for (const job of jobs) job.set({ paymentMethod: body.method })
+
+  if (body.method === "cash" && body.counter && (await getSession())?.userId === String(shop.ownerId)) {
+    order.set({ customer: { name: "কাউন্টার" } })
+    await Promise.all([order.save(), ...jobs.map((job) => job.save())])
+    await placeOrder(order._id, ["draft", "pending_payment"])
+    return NextResponse.json({ redirectUrl: statusPage })
+  }
 
   if (body.method === "cash") {
     const fields = cashFields(shop)

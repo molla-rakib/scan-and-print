@@ -1,6 +1,6 @@
 import "server-only"
 import mongoose, { Schema, type HydratedDocument, type InferSchemaType, type Model } from "mongoose"
-import { JOB_STATUSES, PAPER_SIZES, SUBSCRIPTION_METHODS, SUBSCRIPTION_STATUSES } from "@/lib/constants"
+import { JOB_KINDS, JOB_STATUSES, PAPER_SIZES, SUBSCRIPTION_METHODS, SUBSCRIPTION_STATUSES } from "@/lib/constants"
 
 const { ObjectId } = Schema.Types
 
@@ -86,6 +86,15 @@ const cashSchema = new Schema(
   { _id: false }
 )
 
+const photoSchema = new Schema(
+  {
+    enabled: { type: Boolean, default: false },
+    // Price of one A4 sheet of photos, printed in color (on the photo printer when the shop marked one).
+    sheetPrice: { type: Number, default: 40 },
+  },
+  { _id: false }
+)
+
 // A subscription discount the admin gives a shop: a percentage off, or a fixed monthly fee for the whole shop.
 // Without `until` it never ends.
 const discountSchema = new Schema(
@@ -112,6 +121,8 @@ const shopSchema = new Schema(
     bkash: { type: bkashSchema, default: () => ({}), required: true },
     // Cash jobs print right away; the customer's name and/or phone tell the shop who owes the money.
     cash: { type: cashSchema, default: () => ({}), required: true },
+    // Passport/stamp photo sheets made on the shop page: offered only when enabled, at a price per A4 sheet.
+    photo: { type: photoSchema, default: () => ({}), required: true },
     status: { type: String, enum: ["active", "suspended"], default: "active" },
     discount: { type: discountSchema },
     // Billing: the shop pays per enabled device.
@@ -155,6 +166,8 @@ const deviceSchema = new Schema(
     name: { type: String, required: true },
     color: { type: Boolean, default: false },
     duplex: { type: Boolean, default: false },
+    // Set by the owner: photo paper is loaded. Photo sheets go here first; other jobs avoid it when they can.
+    photo: { type: Boolean, default: false },
     // Paper sizes the driver supports (of PAPER_SIZES). Empty when the agent doesn't report them.
     paperSizes: { type: [String], default: [] },
     // Paper sizes the printer can print on both sides (agent 1.2.0+). Empty: only A4, if `duplex`.
@@ -220,9 +233,14 @@ const printJobSchema = new Schema(
     fileSize: { type: Number, required: true },
     fileDeleted: { type: Boolean, default: false },
     pageCount: { type: Number, required: true },
+    // What the file is: a document, or made by a tool on the shop page (JOB_KINDS).
+    kind: { type: String, enum: JOB_KINDS, default: "document" },
     // Selected page numbers (1-based); empty means every page.
     pages: { type: [Number], default: [] },
-    // Pages that will print (selected pages, or pageCount).
+    // Pages shrunk onto one side of a sheet (1, 2 or 4). Above 1 the server lays the pages out itself when the
+    // agent downloads the file, so the agent prints the result as is.
+    perSheet: { type: Number, default: 1 },
+    // Sides that will print: the selected pages (or pageCount), divided by perSheet.
     printPages: { type: Number, default: 0 },
     colorMode: { type: String, enum: ["bw", "color"], default: "bw" },
     duplex: { type: Boolean, default: false },
@@ -348,6 +366,45 @@ const billingSettingsSchema = new Schema(
 
 export const BillingSettings = defineModel("BillingSettings", billingSettingsSchema)
 export type BillingSettingsDoc = HydratedDocument<InferSchemaType<typeof billingSettingsSchema>>
+
+/* -------------------------------- Transfers -------------------------------- */
+
+// A short session between the shop PC and a customer's phone, opened from the agent's counter window and
+// joined by scanning the QR it shows. "scan": the PC sends scanned pages to the phone. "receive": the phone
+// sends files to the PC. Files live in GridFS only until the session closes (TRANSFER_MINUTES at most).
+const transferFileSchema = new Schema(
+  {
+    fileKey: { type: String, required: true },
+    name: { type: String, required: true },
+    size: { type: Number, required: true },
+    contentType: { type: String, required: true },
+    // Who added it: the shop PC (scan) or the customer (receive).
+    from: { type: String, enum: ["shop", "customer"], required: true },
+    // When the agent saved a customer's file on the PC (the server copy is deleted then).
+    fetchedAt: { type: Date },
+    deleted: { type: Boolean, default: false },
+  },
+  { timestamps: true }
+)
+
+const transferSchema = new Schema(
+  {
+    publicId: { type: String, required: true, unique: true },
+    shopId: { type: ObjectId, ref: "Shop", required: true, index: true },
+    agentId: { type: ObjectId, ref: "Agent", required: true },
+    kind: { type: String, enum: ["scan", "receive"], required: true },
+    status: { type: String, enum: ["open", "closed"], default: "open" },
+    files: { type: [transferFileSchema], default: [] },
+    // After this the session is closed and its files deleted (closeExpiredTransfers).
+    closesAt: { type: Date, required: true, index: true },
+    // MongoDB removes the record itself a day later.
+    expiresAt: { type: Date, required: true, index: { expires: 0 } },
+  },
+  { timestamps: true }
+)
+
+export const Transfer = defineModel("Transfer", transferSchema)
+export type TransferDoc = HydratedDocument<InferSchemaType<typeof transferSchema>>
 
 /* ------------------------------ Upload pieces ------------------------------ */
 

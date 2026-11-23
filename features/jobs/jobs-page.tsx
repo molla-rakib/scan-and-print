@@ -10,6 +10,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 import { Skeleton } from "@/components/ui/skeleton"
 import { requireShop } from "@/lib/auth"
 import { readListParams } from "@/lib/list-params"
+import { CounterOrderButton } from "./components/counter-order-button"
 import { DeleteHistoryButton } from "./components/delete-history-button"
 import { OrdersTable } from "./components/orders-table"
 import { loadOrders } from "./queries"
@@ -26,6 +27,9 @@ export function JobsPage({ searchParams }: { searchParams: SearchParams }) {
         icon={ListOrderedIcon}
         tone="violet"
       >
+        <Suspense>
+          <CounterOrder />
+        </Suspense>
         <DeleteHistoryButton />
       </PageHeader>
       <Suspense fallback={<Skeleton className="h-96" />}>
@@ -33,6 +37,11 @@ export function JobsPage({ searchParams }: { searchParams: SearchParams }) {
       </Suspense>
     </>
   )
+}
+
+async function CounterOrder() {
+  const { shop } = await requireShop()
+  return <CounterOrderButton slug={shop.slug} />
 }
 
 async function Jobs({ searchParams }: { searchParams: SearchParams }) {

@@ -5,6 +5,7 @@ import {
   CircleAlertIcon,
   CopyIcon,
   FileTextIcon,
+  LayoutGridIcon,
   LayersIcon,
   ListChecksIcon,
   MinusIcon,
@@ -18,7 +19,18 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
-import { MAX_COPIES, PAPER_SIZE_LABELS, SIDES_LABELS, formatNumber, formatPageSelection, formatTaka, sheetCount, unitPrice } from "@/lib/constants"
+import {
+  JOB_KIND_LABELS,
+  MAX_COPIES,
+  PAPER_SIZE_LABELS,
+  SIDES_LABELS,
+  formatNumber,
+  formatPageSelection,
+  formatTaka,
+  sheetCount,
+  unitPrice,
+  type PagesPerSheet,
+} from "@/lib/constants"
 import type { PublicShopView } from "@/lib/public-shop"
 import { cn } from "@/lib/utils"
 import { useFileCard } from "../hooks/use-file-card"
@@ -117,8 +129,26 @@ export function FileCard({
   onChange: (options: PrintOptions) => void
   onRemove: () => void
 }) {
-  const { picking, setPicking, options, set, ready, pageCount, canPick, paper, showSides, duplex, unitHint, printed, total, sidesNote } =
-    useFileCard(item, shop, disabled, onChange)
+  const {
+    picking,
+    setPicking,
+    options,
+    set,
+    ready,
+    pageCount,
+    canPick,
+    paper,
+    showSides,
+    duplex,
+    unitHint,
+    printed,
+    selected,
+    total,
+    sidesNote,
+    photoSheet,
+    sizeChoice,
+    perSheetChoice,
+  } = useFileCard(item, shop, disabled, onChange)
 
   return (
     <div className="flex flex-col gap-5 rounded-xl border bg-card p-4 shadow-xs">
@@ -145,6 +175,7 @@ export function FileCard({
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           {index !== null && <span className="text-xs font-medium text-primary">ফাইল {formatNumber(index)}</span>}
           <div className="truncate font-medium">{item.file.name}</div>
+          {item.kind !== "document" && <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">{JOB_KIND_LABELS[item.kind]}</span>}
           {ready ? (
             <div className="text-sm text-muted-foreground">মোট {formatNumber(pageCount)} পৃষ্ঠা</div>
           ) : item.state === "error" ? (
@@ -210,6 +241,7 @@ export function FileCard({
             </>
           )}
 
+          {!photoSheet && (
           <Segmented
             icon={PaletteIcon}
             label="প্রিন্টের রং"
@@ -226,8 +258,24 @@ export function FileCard({
               },
             ]}
           />
+          )}
 
-          {showSides ? (
+          {perSheetChoice && (
+            <Segmented
+              icon={LayoutGridIcon}
+              label="এক পাতায় কয়টি পৃষ্ঠা?"
+              value={String(options.perSheet)}
+              disabled={disabled}
+              onChange={(value) => set({ perSheet: Number(value) as PagesPerSheet })}
+              options={[
+                { value: "1", label: "১টি", hint: "সাধারণ" },
+                { value: "2", label: "২টি", hint: "ছোট করে" },
+                { value: "4", label: "৪টি", hint: "আরও ছোট" },
+              ]}
+            />
+          )}
+
+          {photoSheet ? null : showSides ? (
             <Segmented
               icon={LayersIcon}
               label="কাগজের এক পাশে না দুই পাশে?"
@@ -253,7 +301,7 @@ export function FileCard({
             )
           )}
 
-          {shop.papers.length > 1 && (
+          {sizeChoice && (
             <Segmented
               icon={RulerIcon}
               label="কাগজের মাপ"
@@ -301,10 +349,19 @@ export function FileCard({
             <div className="min-w-0">
               <div className="text-sm font-medium text-emerald-800 dark:text-emerald-300">এই ফাইলের দাম</div>
               <div className="text-xs text-muted-foreground">
-                {duplex
-                  ? `${formatNumber(printed)} পৃষ্ঠা = ${formatNumber(sheetCount(printed, true))} কাগজ`
-                  : `${formatNumber(printed)} পৃষ্ঠা`}{" "}
-                × {formatNumber(options.copies)} কপি × {formatTaka(unitPrice(paper, options.colorMode, duplex))}
+                {photoSheet ? (
+                  <>
+                    {formatNumber(pageCount)} পাতা × {formatNumber(options.copies)} কপি × {formatTaka(shop.photoSheetPrice ?? 0)}
+                  </>
+                ) : (
+                  <>
+                    {printed !== selected && `${formatNumber(selected)} পৃষ্ঠা পাতায় ${formatNumber(options.perSheet)}টি করে = `}
+                    {duplex
+                      ? `${formatNumber(printed)} পৃষ্ঠা = ${formatNumber(sheetCount(printed, true))} কাগজ`
+                      : `${formatNumber(printed)} পৃষ্ঠা`}{" "}
+                    × {formatNumber(options.copies)} কপি × {formatTaka(unitPrice(paper, options.colorMode, duplex))}
+                  </>
+                )}
               </div>
             </div>
             <span className="text-xl font-semibold text-emerald-800 tabular-nums dark:text-emerald-300">

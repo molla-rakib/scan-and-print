@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { jsonError } from "@/lib/api"
-import { MAX_FILES_PER_ORDER, UPLOAD_CHUNK_BYTES, UPLOAD_ID_PATTERN, formatNumber } from "@/lib/constants"
+import { JOB_KINDS, MAX_FILES_PER_ORDER, UPLOAD_CHUNK_BYTES, UPLOAD_ID_PATTERN, formatNumber } from "@/lib/constants"
 import { randomToken } from "@/lib/crypto"
 import { env } from "@/lib/env"
-import { nextToken, shopIsOpen } from "@/lib/jobs"
+import { nextToken, photoSheetPrice, shopIsOpen } from "@/lib/jobs"
 import { Order, PrintJob, UploadPart } from "@/lib/models"
 import { InvalidPdfError, preparePrintFile } from "@/lib/pdf"
 import { findShopBySlug } from "@/lib/public-shop"
@@ -21,6 +21,8 @@ const schema = z
     name: z.string().max(300).optional(),
     // Adds the file to this draft order; a new order is created when it's missing.
     order: z.string().trim().max(40).optional(),
+    // Which tool on the shop page made the file (NID copy, scan, photo sheet); a plain upload is a document.
+    kind: z.enum(JOB_KINDS).default("document"),
   })
   .refine((body) => body.file || (body.upload && body.parts), "file or upload is required")
 
@@ -47,12 +49,14 @@ export async function POST(request: Request) {
     parts: form?.get("parts") || undefined,
     name: form?.get("name") || undefined,
     order: form?.get("order") || undefined,
+    kind: form?.get("kind") || undefined,
   })
   if (!body.success) return jsonError("অনুরোধটি সঠিক নয়")
-  const { slug, file } = body.data
+  const { slug, file, kind } = body.data
 
   const shop = await findShopBySlug(slug)
   if (!shop || !shopIsOpen(shop)) return jsonError("এই দোকান এখন অর্ডার নিচ্ছে না", 404)
+  if (kind === "photo-sheet" && photoSheetPrice(shop) === null) return jsonError("এই দোকানে পাসপোর্ট ছবি প্রিন্ট চালু নেই")
 
   let bytes: Buffer
   let originalName: string
@@ -112,6 +116,7 @@ export async function POST(request: Request) {
       token: order.token,
       fileKey,
       fileName,
+      kind,
       fileSize: prepared.pdf.length,
       pageCount: prepared.pageCount,
       printPages: prepared.pageCount,

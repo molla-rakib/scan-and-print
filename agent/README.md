@@ -19,6 +19,15 @@ Windows 11 and updated Windows 10).
 From then on it lives in the tray: a blue icon with a green (online), red (offline / not paired) or
 orange (print software missing) dot. Clicking it, or the desktop shortcut, opens a status window: online state,
 shop, printers, last job.
+
+**Counter (1.4.0+).** Tray menu or status window → **স্ক্যান ও ফাইল আদান-প্রদান** opens a counter window with two
+sessions, each shown as a QR the customer scans with their phone camera (a session lives 30 minutes on the server):
+
+- **Scan to phone**: set the copier's "Scan to Folder" or the scanner software to `Documents\Mudron\Scans` (PDF or JPG).
+  Each new scan is sent to the customer's phone once its size stops changing, then deleted from the PC.
+- **Receive from phone**: files the customer sends (PDF, pictures, Word/Excel/PowerPoint, text; never programs) are
+  saved to `Documents\Mudron\Inbox`, with an "open" button per file; the server deletes its copy once saved.
+
 Uninstall from Settings → Apps → "Mudron Agent".
 
 Agents up to 1.2.0 were named "ScanAndPrint" (`ScanAndPrintAgent.exe`, `%LOCALAPPDATA%\Programs\ScanAndPrint`,
@@ -73,6 +82,7 @@ server used for pairing (also for the installed app, if set when the installer r
 |---|---|
 | `src/main.rs` | No arguments: self-install (release, when not yet installed) or the tray app. Otherwise a console command |
 | `src/gui.rs` | Tray app (tao event loop + tray-icon): status icon and menu, pairing and status windows (wry web views showing `ui/*.html`), SumatraPDF download, update checks |
+| `src/transfer.rs` | Counter sessions (`ui/counter.html`): opens a transfer on the server, watches the scan folder and uploads new scans, or saves the customer's files to the inbox |
 | `src/runner.rs` | Printing thread: heartbeat every 30 s, poll for a job every 3 s, back off 5–60 s while offline, stop when the PC is removed in the dashboard |
 | `src/api.rs` | HTTP client (`ureq`). Downloads job PDFs from our own server URL so the token never goes elsewhere |
 | `src/printers.rs` | `EnumPrintersW` + `DeviceCapabilitiesW`: name, color, duplex, paper sizes (A4/Legal/A3), state (offline, paper out, …) |

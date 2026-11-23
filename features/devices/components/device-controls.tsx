@@ -21,27 +21,29 @@ import { TableCell } from "@/components/ui/table"
 import { useDeviceRow } from "../hooks/use-device-row"
 import { useRenameDevice } from "../hooks/use-rename-device"
 
-type DeviceProps = { id: string; name: string; color: boolean; enabled: boolean }
+type DeviceProps = { id: string; name: string; color: boolean; photo: boolean; enabled: boolean }
 
 const colorOptions = [
   { value: "bw", label: "সাদা-কালো" },
   { value: "color", label: "রঙিন" },
+  // Passport photo sheets go to this printer first; other jobs avoid it when they can.
+  { value: "photo", label: "ফটো প্রিন্টার" },
 ]
 
 /** The editable cells of a printer row: color type, rename and the on/off switch. */
 export function DeviceControls({ device }: { device: DeviceProps }) {
-  const { pending, setColor, setEnabled } = useDeviceRow(device.id)
+  const { pending, setType, setEnabled } = useDeviceRow(device.id)
   return (
     <>
       <TableCell>
         <div className="flex items-center gap-1">
           <Select
             items={colorOptions}
-            value={device.color ? "color" : "bw"}
-            onValueChange={(value) => setColor(value === "color")}
+            value={device.photo ? "photo" : device.color ? "color" : "bw"}
+            onValueChange={(value) => setType(value as "bw" | "color" | "photo")}
             disabled={pending}
           >
-            <SelectTrigger size="sm" className="w-28">
+            <SelectTrigger size="sm" className="w-32">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

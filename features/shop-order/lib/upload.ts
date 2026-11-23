@@ -1,4 +1,4 @@
-import { UPLOAD_CHUNK_BYTES } from "@/lib/constants"
+import { UPLOAD_CHUNK_BYTES, type JobKind } from "@/lib/constants"
 
 type Uploaded = { order: string; file: { id: string; pageCount: number } }
 
@@ -36,9 +36,17 @@ function send(url: string, body: XMLHttpRequestBodyInit, onProgress: (loaded: nu
  * Files above UPLOAD_CHUNK_BYTES go in pieces, because Vercel rejects request bodies over 4.5 MB; each
  * piece is retried a couple of times on a flaky connection.
  */
-export async function uploadFile(slug: string, file: File, order: string | null, onProgress: (percent: number) => void, onSent: () => void) {
+export async function uploadFile(
+  slug: string,
+  file: File,
+  kind: JobKind,
+  order: string | null,
+  onProgress: (percent: number) => void,
+  onSent: () => void
+) {
   const form = new FormData()
   form.append("slug", slug)
+  form.append("kind", kind)
   if (order) form.append("order", order)
   const percent = (sent: number) => onProgress(Math.min(100, Math.round((sent / Math.max(file.size, 1)) * 100)))
 

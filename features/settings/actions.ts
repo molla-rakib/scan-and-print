@@ -44,6 +44,19 @@ export async function updatePricing(input: z.input<typeof pricingSchema>): Promi
   return { ok: true }
 }
 
+const photoSchema = z.object({ enabled: z.boolean(), sheetPrice: z.number().min(0).max(5000) })
+
+/** Passport photo sheets on the shop page: on/off and the price of one A4 sheet. */
+export async function updatePhotoSettings(input: z.input<typeof photoSchema>): Promise<ActionResult> {
+  const { shop } = await requireShop()
+  const parsed = photoSchema.safeParse(input)
+  if (!parsed.success) return fail("সঠিক দাম দিন।")
+  shop.set({ photo: parsed.data })
+  await shop.save()
+  refresh()
+  return { ok: true }
+}
+
 /* --------------------------------- Payments -------------------------------- */
 
 const cashSchema = z

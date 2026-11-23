@@ -5,6 +5,7 @@ import { expireStaleJobs, expireStaleJobsThrottled, rebalanceQueue } from "@/lib
 import { Device, PrintJob } from "@/lib/models"
 import { env } from "@/lib/env"
 import { sweepOrphanFiles } from "@/lib/storage"
+import { closeExpiredTransfers } from "@/lib/transfers"
 
 /** Agents poll this every few seconds. Returns the next job for one of the agent's printers, if any. */
 export async function POST(request: Request) {
@@ -16,6 +17,7 @@ export async function POST(request: Request) {
   await rebalanceQueue(agent.shopId)
   expireStaleJobsThrottled().catch((error) => console.error("Job expiry failed", error))
   sweepOrphanFiles().catch((error) => console.error("File sweep failed", error))
+  closeExpiredTransfers().catch((error) => console.error("Closing transfers failed", error))
 
   const job = await PrintJob.findOneAndUpdate(
     { agentId: agent._id, status: "queued", deviceId: { $ne: null } },
@@ -42,7 +44,8 @@ export async function POST(request: Request) {
       colorMode: job.colorMode,
       copies: job.copies,
       // Agents 1.1.0+. Pages as SumatraPDF ranges ("1-3,5"), null for every page.
-      pages: job.pages.length ? pagesToRanges(job.pages) : null,
+      // With several pages per sheet the server lays the picked pages out in the file itself.
+      pages: job.pages.length && (job.perSheet ?? 1) <= 1 ? pagesToRanges(job.pages) : null,
       duplex: job.duplex,
       paperSize: job.paperSize,
     },

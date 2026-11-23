@@ -43,6 +43,7 @@
     <dt>ভার্সন</dt><dd id="version">—</dd>
   </dl>
   <div style="margin-top:auto; display:grid; gap:10px">
+    <button type="button" id="counter" class="block">স্ক্যান ও ফাইল আদান-প্রদান (কাউন্টার)</button>
     <div class="row">
       <button type="button" id="dashboard" class="primary">ড্যাশবোর্ড খুলুন</button>
       <button type="button" id="close">বন্ধ করুন</button>
@@ -57,6 +58,7 @@
   document.addEventListener("contextmenu", (e) => e.preventDefault())
   $("dashboard").addEventListener("click", () => send({ type: "openDashboard" }))
   $("close").addEventListener("click", () => send({ type: "close" }))
+  $("counter").addEventListener("click", () => send({ type: "openCounter" }))
 
   const STATES = {
     starting: ["", "চালু হচ্ছে…", "সার্ভারের সাথে সংযোগ করা হচ্ছে"],

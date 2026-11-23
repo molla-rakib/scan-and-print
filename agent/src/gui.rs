@@ -34,7 +34,9 @@ use crate::{
     log::{self, log},
     machine_name, print,
     runner::{self, Exit, RunnerEvent},
-    system, update,
+    system,
+    transfer::{self, TransferEvent},
+    update,
 };
 
 /// First update check shortly after start, then every few hours.
@@ -46,6 +48,7 @@ const STYLE: &str = include_str!("../ui/style.css");
 const LOGO: &str = include_str!("../../public/images/logo-small.svg");
 const PAIR_HTML: &str = include_str!("../ui/pair.html");
 const STATUS_HTML: &str = include_str!("../ui/status.html");
+const COUNTER_HTML: &str = include_str!("../ui/counter.html");
 /// Retry the SumatraPDF download this often until it succeeds.
 const SUMATRA_RETRY: Duration = Duration::from_secs(60);
 
@@ -53,6 +56,8 @@ const SUMATRA_RETRY: Duration = Duration::from_secs(60);
 enum Page {
     Pair,
     Status,
+    /// Counter: scan to a customer's phone, or receive their files.
+    Counter,
 }
 
 enum UserEvent {
@@ -73,6 +78,8 @@ enum UserEvent {
     UpdateReady(PathBuf),
     /// The printing thread finished its current job and stopped.
     RunnerStopped(AfterStop),
+    /// Something happened in the counter transfer.
+    Transfer(TransferEvent),
 }
 
 /// What to do once the printing thread has stopped.
@@ -88,6 +95,11 @@ enum IpcMessage {
     Close,
     OpenDashboard,
     Pair { code: String },
+    OpenCounter,
+    StartTransfer { kind: String },
+    StopTransfer,
+    OpenFolder { which: String },
+    OpenFile { path: String },
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -106,6 +118,7 @@ struct Popup {
 struct Menus {
     status: MenuItem,
     show: MenuItem,
+    counter: MenuItem,
     dashboard: MenuItem,
     autostart: CheckMenuItem,
     pair: MenuItem,
@@ -126,6 +139,9 @@ struct App {
     web_context: WebContext,
     pair: Option<Popup>,
     status_window: Option<Popup>,
+    counter_window: Option<Popup>,
+    /// Stop flag of the running counter transfer, if any.
+    transfer: Option<Arc<AtomicBool>>,
     status: Status,
     sumatra_missing: bool,
     /// Token of the last finished job and whether it printed.
@@ -162,6 +178,7 @@ pub fn run(default_server: String) {
         menus: Menus {
             status: MenuItem::new("চালু হচ্ছে…", false, None),
             show: MenuItem::new("এজেন্টের অবস্থা দেখুন", true, None),
+            counter: MenuItem::new("স্ক্যান ও ফাইল আদান-প্রদান", true, None),
             dashboard: MenuItem::new("ড্যাশবোর্ড খুলুন", true, None),
             autostart: CheckMenuItem::new("Windows চালু হলে এজেন্ট চালু করুন", true, system::autostart_enabled(), None),
             pair: MenuItem::new("দোকানের সাথে আবার যুক্ত করুন", true, None),
@@ -171,6 +188,8 @@ pub fn run(default_server: String) {
         web_context: WebContext::new(Some(config::data_dir().join("webview"))),
         pair: None,
         status_window: None,
+        counter_window: None,
+        transfer: None,
         status: Status::Starting,
         sumatra_missing: print::find_sumatra().is_none(),
         last_job: None,
@@ -202,6 +221,7 @@ impl App {
             &m.status,
             &separator,
             &m.show,
+            &m.counter,
             &m.dashboard,
             &PredefinedMenuItem::separator(),
             &m.autostart,
@@ -271,6 +291,8 @@ impl App {
         // Nothing should look clickable while we wait.
         self.pair = None;
         self.status_window = None;
+        self.counter_window = None;
+        self.stop_transfer();
         self.menus.status.set_text("বন্ধ হচ্ছে…");
         let proxy = self.proxy.clone();
         let runner = self.runner.take();
@@ -297,6 +319,8 @@ impl App {
                     self.stop_then(AfterStop::Quit);
                 } else if event.id == *m.show.id() {
                     self.show(target);
+                } else if event.id == *m.counter.id() {
+                    self.open_counter(target);
                 } else if event.id == *m.dashboard.id() {
                     system::open(&format!("{}/dashboard", self.server));
                 } else if event.id == *m.pair.id() {
@@ -351,7 +375,9 @@ impl App {
                 self.set_status(Status::Unpaired);
                 self.open_pair(target);
             }
+            UserEvent::Ipc(Page::Status, body) if body.contains("\"openCounter\"") => self.open_counter(target),
             UserEvent::Ipc(page, body) => self.handle_ipc(page, &body),
+            UserEvent::Transfer(event) => self.on_transfer(event),
             UserEvent::Paired(result) => {
                 let shop = result.as_ref().map(|c| c.shop_name.clone()).unwrap_or_default();
                 let (ok, message) = match result {
@@ -385,11 +411,40 @@ impl App {
         let Ok(message) = serde_json::from_str::<IpcMessage>(body) else { return };
         match message {
             IpcMessage::Ready if page == Page::Status => self.render_status(),
+            IpcMessage::Ready if page == Page::Counter => {
+                if let Some(popup) = &self.counter_window {
+                    let data = serde_json::json!({
+                        "scanDir": transfer::scan_dir().display().to_string(),
+                        "inboxDir": transfer::inbox_dir().display().to_string(),
+                    });
+                    let _ = popup.webview.evaluate_script(&format!("init({data})"));
+                }
+            }
             IpcMessage::Ready => {}
             IpcMessage::Close => match page {
                 Page::Pair => self.pair = None,
                 Page::Status => self.status_window = None,
+                Page::Counter => {
+                    self.stop_transfer();
+                    self.counter_window = None;
+                }
             },
+            // Handled in `handle` (opening a window needs the event loop).
+            IpcMessage::OpenCounter => {}
+            IpcMessage::StartTransfer { kind } => self.start_transfer(&kind),
+            IpcMessage::StopTransfer => self.stop_transfer(),
+            IpcMessage::OpenFolder { which } => {
+                let dir = if which == "scan" { transfer::scan_dir() } else { transfer::inbox_dir() };
+                let _ = std::fs::create_dir_all(&dir);
+                system::open(&dir.to_string_lossy());
+            }
+            IpcMessage::OpenFile { path } => {
+                // Only files the counter saved, never an arbitrary path from the page.
+                let path = PathBuf::from(path);
+                if transfer::in_transfer_folder(&path) {
+                    system::open(&path.to_string_lossy());
+                }
+            }
             IpcMessage::OpenDashboard => system::open(&format!("{}/dashboard/devices", self.server)),
             IpcMessage::Pair { code } => {
                 let server = self.server.clone();
@@ -405,6 +460,62 @@ impl App {
                     let _ = proxy.send_event(UserEvent::Paired(result));
                 });
             }
+        }
+    }
+
+    fn open_counter(&mut self, target: &EventLoopWindowTarget<UserEvent>) {
+        if self.cfg.is_none() {
+            return self.open_pair(target);
+        }
+        match &self.counter_window {
+            Some(popup) => {
+                popup.window.set_minimized(false);
+                popup.window.set_focus();
+            }
+            None => self.counter_window = self.open_popup(target, Page::Counter, false),
+        }
+    }
+
+    /// Starts a counter transfer on its own thread; its events come back as `UserEvent::Transfer`.
+    fn start_transfer(&mut self, kind: &str) {
+        let (Some(kind), Some(cfg)) = (transfer::Kind::parse(kind), self.cfg.clone()) else { return };
+        if self.transfer.is_some() {
+            return;
+        }
+        let stop = Arc::new(AtomicBool::new(false));
+        self.transfer = Some(stop.clone());
+        let proxy = self.proxy.clone();
+        thread::spawn(move || {
+            transfer::run(&cfg, kind, stop, |event| {
+                let _ = proxy.send_event(UserEvent::Transfer(event));
+            });
+        });
+    }
+
+    fn stop_transfer(&mut self) {
+        if let Some(stop) = &self.transfer {
+            stop.store(true, Ordering::Relaxed);
+        }
+    }
+
+    /// Forwards a transfer event to the counter window.
+    fn on_transfer(&mut self, event: TransferEvent) {
+        let data = match &event {
+            TransferEvent::Opened { kind, qr_svg } => serde_json::json!({ "type": "opened", "kind": kind.as_str(), "qrSvg": qr_svg }),
+            TransferEvent::Failed(message) => serde_json::json!({ "type": "failed", "message": message }),
+            TransferEvent::Sent(name) => serde_json::json!({ "type": "sent", "name": name }),
+            TransferEvent::SendFailed { name, error } => serde_json::json!({ "type": "sendFailed", "name": name, "error": error }),
+            TransferEvent::Received { name, path } => {
+                serde_json::json!({ "type": "received", "name": name, "path": path.display().to_string() })
+            }
+            TransferEvent::Closed => serde_json::json!({ "type": "closed" }),
+        };
+        // Every session ends with Closed (also one that failed to open); the counter is free again.
+        if matches!(event, TransferEvent::Closed) {
+            self.transfer = None;
+        }
+        if let Some(popup) = &self.counter_window {
+            let _ = popup.webview.evaluate_script(&format!("onTransfer({data})"));
         }
     }
 
@@ -495,6 +606,10 @@ impl App {
         if self.status_window.as_ref().is_some_and(|p| p.window.id() == id) {
             self.status_window = None;
         }
+        if self.counter_window.as_ref().is_some_and(|p| p.window.id() == id) {
+            self.counter_window = None;
+            self.stop_transfer();
+        }
     }
 
     fn set_status(&mut self, status: Status) {
@@ -562,7 +677,8 @@ fn window_icon() -> Option<tao::window::Icon> {
 fn page_window(page: Page) -> (&'static str, (f64, f64), bool) {
     match page {
         Page::Pair => ("Mudron", (440.0, 500.0), false),
-        Page::Status => ("Mudron", (420.0, 570.0), false),
+        Page::Status => ("Mudron", (420.0, 610.0), false),
+        Page::Counter => ("Mudron", (460.0, 680.0), true),
     }
 }
 
@@ -570,6 +686,7 @@ fn page_html(page: Page) -> String {
     match page {
         Page::Pair => PAIR_HTML,
         Page::Status => STATUS_HTML,
+        Page::Counter => COUNTER_HTML,
     }
     .replace("/*STYLE*/", STYLE)
     .replace("<!--LOGO-->", &LOGO.replacen("<svg ", "<svg class=\"logo\" aria-hidden=\"true\" ", 1))

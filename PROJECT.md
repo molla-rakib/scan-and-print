@@ -3,7 +3,7 @@
 Living document: the goal, the decisions behind the design, what is done, and what comes next.
 Update it whenever a feature lands, a decision changes, or a question gets answered.
 
-_Last updated: 2026-11-17_
+_Last updated: 2026-11-22_
 
 ---
 
@@ -183,6 +183,32 @@ Tasks:
 
 Waiting on the owner: our bKash PGW merchant approval, EPS merchant account, our bKash/Nagad receiving numbers.
 
+### ✅ Phase 2.7: Customer self-service tools + counter mode (built 2026-11-22)
+
+Goal: the shop owner does everything from Mudron, with no outside services (no Telegram/WhatsApp/email). Word to PDF
+was dropped on purpose. Image work runs in the customer's browser, so raw NID photos never reach the server.
+
+- [x] Shop page "আরও সেবা" tiles (`features/shop-order/components/tools/`); each tool hands the order a finished PDF with a
+      job `kind` (`id-card`, `scan`, `photo-sheet`), shown in the dashboard and on the status page
+- [x] **NID / আইডি কার্ড কপি**: front/back photos, automatic corner detection + drag to fix, straightening, color/grey/photocopy
+      look, true ID-1 size (85.6 × 54 mm) or 1.5×, 1–8 copies per A4 with cut lines, optional "শুধুমাত্র … জন্য" stamp
+- [x] **ক্যামেরা স্ক্যান**: photos of pages → straightened, cleaned PDF (photocopy look by default), print or download
+- [x] **পাসপোর্ট ছবি**: crop with a face guide, background white/blue (MediaPipe selfie segmenter, served from
+      `public/mediapipe/`), passport/visa/US sizes + stamp photos on one A4. Owner turns it on with a price per sheet
+      (Settings → প্রিন্টের দাম); devices can be marked "ফটো প্রিন্টার" and photo sheets route there first
+- [x] **ফর্মের ছবি ও সই**: 300×300 photo and 300×80 signature under the form's KB limit (Teletalk preset or custom); free download
+- [x] **২/৪ পৃষ্ঠা এক পাতায়** for documents and scans: priced per printed side; the server lays the pages out when the agent
+      downloads the file (`pagesPerSheetPdf` in `lib/pdf.ts`), so every agent version prints it
+- [x] **কাউন্টার অর্ডার**: button on প্রিন্ট অর্ডার opens `/s/<slug>?counter=1`; for the signed-in owner it is cash with no customer
+      details (pen-drive files, walk-ins without a smartphone), recorded like every other order
+- [x] **Counter transfers** (agent 1.4.0, `Transfer` model, `lib/transfers.ts`, `/t/[id]`): scan to the customer's phone by QR
+      (agent watches `Documents\Mudron\Scans`, deletes each scan once sent) and receive the customer's files into
+      `Documents\Mudron\Inbox` (allow-listed document/picture types only). Sessions close after 30 min and delete their files
+- [x] Verified: tsc, lint, `next build`, 39 scripted API checks against a local test database, and the four tools in the browser
+- [ ] Release agent 1.4.0 (`agent/release.ps1`) and try the counter window on a real shop PC with a copier's Scan to Folder
+- [ ] Check NID true size with a ruler on a real printer; try background removal with real selfies on cheap Android phones
+- [ ] Confirm the passport/stamp sizes pilot shops actually use (presets in `features/shop-order/hooks/use-photo-tool.ts`)
+
 ### 📋 Phase 3: Production launch
 
 - [ ] Choose hosting (VPS) + domain; production Docker Compose (Next.js, MongoDB with auth)
@@ -279,4 +305,5 @@ To reach 9+ (in order):
 | 2026-11-12 | **Smoother login/onboarding.** Signed-in users are sent straight to their home (`homePathFor()` in `lib/auth.ts`: admin panel, dashboard, or onboarding when there is no shop) from the Google callback, the login page and the home-page button, instead of via `/dashboard`, whose streamed redirect to onboarding only fired after a click. The onboarding form is now part of the prerendered page (it only needs build-time values; `TRIAL_DEVICE_LIMIT` became a Docker build arg), so it shows at once; a hidden check sends owners who already have a shop to the dashboard. Removed the plan table from onboarding; the device stepper shows the monthly total. Fixed: a stale dashboard prefetch flashing onboarding after setup, the "লগআউট হচ্ছে…" toast staying after logout, and loading skeletons flashing for 0.3 s on fast page switches (they now fade in only after 0.4 s). Sidebar is white in light mode. |
 | 2026-11-12 | Login always lands somewhere usable: anyone without a shop goes to onboarding first, **admins included** (an admin with no shop used to land on the admin panel, where every shop page bounced to onboarding on the first click); admins get an "এখন না, অ্যাডমিন প্যানেলে যান" link there. Logout no longer shows "লগআউট করা যায়নি" after logging out: the action only ends the session and the browser opens /login itself (a `redirect()` inside the action reached the client as an error). |
 | 2026-11-17 | **Both sides printed one-sided on a real duplex printer** (4-page PDF → 4 sheets). Server, API and agent all passed `duplex` correctly; SumatraPDF only sets the standard `dmDuplex` field of the DEVMODE, which many drivers ignore in favour of the setting in their private data. Agent 1.3.1 (`agent/src/job_defaults.rs`): before a both-sides job it lets the driver build the settings from a PrintTicket (`JobDuplexAllDocumentsContiguously = TwoSidedLongEdge`, as the Windows print dialog does), makes them the printer's per-user default while SumatraPDF prints, then restores the old default; a backup in `%APPDATA%\Mudron\printer-default.bin` is restored on the next start if the agent dies mid-print. The log shows the option the driver chose ("driver settings for both sides: …"). Tested the PrintTicket/SetPrinter path on the dev PC (Print to PDF, no duplex); not yet on a duplex printer. **Agent icon is now the official logo:** `build.rs` renders `public/images/logo-small.svg` (resvg) into the exe .ico, shortcuts and tray icon (status dot kept); the popups show it too, `agent/ui/logo.svg` removed. |
+| 2026-11-22 | **Customer self-service tools and counter mode (Phase 2.7).** Shop page tools: NID/ID card copy (both sides on one A4 at true size), camera scan, passport photo sheet (background removal in the browser with MediaPipe, self-hosted), online-form photo + signature resizer (free download). Print jobs get a `kind`; documents and scans can print 2 or 4 pages per sheet (laid out on the server at download). Shops can turn on photo sheets with their own price and mark a photo printer. Counter orders for the signed-in owner (cash, no customer details). Agent 1.4.0 counter window: scan to a customer's phone by QR and receive their files on the PC, through 30-minute `Transfer` sessions (`/t/[id]`). Word to PDF and all third-party channels left out by decision. |
 | 2026-11-11 | Maturity review: **6.5/10** (code 8, features 8, security 7, performance 7, reliability/testing 4, operations 4). Goal 9+; the steps to get there are listed under "🎯 Maturity" in section 4. |

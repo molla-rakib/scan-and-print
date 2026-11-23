@@ -73,6 +73,52 @@ export const PAPER_SIZE_LABELS: Record<PaperSize, string> = {
 export const SIDES_LABELS = { single: "এক পাশে", both: "দুই পাশে" } as const
 
 /**
+ * What a print job is. Everything but "document" is made on the customer's phone by a tool on the shop page
+ * (NID copy, camera scan, passport photo sheet) and uploaded as an ordinary PDF.
+ */
+export const JOB_KINDS = ["document", "id-card", "scan", "photo-sheet"] as const
+export type JobKind = (typeof JOB_KINDS)[number]
+
+export const JOB_KIND_LABELS: Record<JobKind, string> = {
+  document: "ডকুমেন্ট",
+  "id-card": "NID / আইডি কার্ড কপি",
+  scan: "ক্যামেরা স্ক্যান",
+  "photo-sheet": "পাসপোর্ট ছবি",
+}
+
+/**
+ * File types a customer may send to the shop PC (counter "receive" sessions): documents and pictures staff
+ * open, never programs or archives that could hide one. Extension → content type.
+ */
+export const TRANSFER_FILE_TYPES: Record<string, string> = {
+  pdf: "application/pdf",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  heic: "image/heic",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ppt: "application/vnd.ms-powerpoint",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  txt: "text/plain",
+  rtf: "application/rtf",
+  odt: "application/vnd.oasis.opendocument.text",
+  csv: "text/csv",
+}
+
+/** Pages printed on one side of a sheet, shrunk to fit (2 or 4 per sheet saves paper on lecture sheets). */
+export const PAGES_PER_SHEET = [1, 2, 4] as const
+export type PagesPerSheet = (typeof PAGES_PER_SHEET)[number]
+
+/** Sides printed: the selected pages, or pages count, divided onto `perSheet` pages per side. */
+export function printedSides(pages: number, perSheet: number) {
+  return Math.ceil(pages / Math.max(perSheet, 1))
+}
+
+/**
  * Prices of one paper size: `bw`/`color` per printed page on one side, `bwSheet`/`colorSheet` per sheet
  * printed on both sides (two pages).
  */

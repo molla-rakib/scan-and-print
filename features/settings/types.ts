@@ -4,6 +4,8 @@ export type Prices = { bw: number; color: number; bwSheet: number; colorSheet: n
 export type PaperPrices = Prices & { enabled: boolean }
 export type Pricing = Prices & { colorDuplex: boolean; paperSizes: { Legal: PaperPrices; A3: PaperPrices } }
 
+export type PhotoSettings = { enabled: boolean; sheetPrice: number; hasColorPrinter: boolean }
+
 export type CashSettings = { enabled: boolean; askName: boolean; askPhone: boolean }
 
 export type BkashInitial = {

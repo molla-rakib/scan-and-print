@@ -78,6 +78,11 @@ export function subscriptionNotice(shop: ShopDoc): { kind: "ending" | "grace" | 
   return null
 }
 
+/** Price of one A4 sheet of passport photos, or null when the shop doesn't offer photo sheets. */
+export function photoSheetPrice(shop: ShopDoc) {
+  return shop.photo?.enabled ? (shop.photo.sheetPrice ?? 0) : null
+}
+
 export function paymentOptions(shop: ShopDoc) {
   const bkashReady = Boolean(
     shop.bkash?.enabled && shop.bkash.username && shop.bkash.appKey && shop.bkash.passwordEnc && shop.bkash.appSecretEnc
@@ -132,7 +137,7 @@ export async function availableDevices(shopId: Id) {
   return devices.map((device) => Object.assign(device, { agentVersion: version.get(String(device.agentId)) ?? "" }))
 }
 
-type JobNeeds = Pick<PrintJobDoc, "colorMode" | "duplex" | "paperSize" | "pages">
+type JobNeeds = Pick<PrintJobDoc, "colorMode" | "duplex" | "paperSize" | "pages"> & { kind?: string | null; perSheet?: number | null }
 
 /** Whether a device can print a job exactly as ordered. */
 export function deviceCanPrint(device: DeviceDoc & { agentVersion: string }, job: JobNeeds) {
@@ -140,7 +145,9 @@ export function deviceCanPrint(device: DeviceDoc & { agentVersion: string }, job
   const size = (job.paperSize ?? "A4") as PaperSize
   if (!printerHasPaper(device, size)) return false
   if (job.duplex && !printerDuplexes(device, size)) return false
-  const needsOptions = job.duplex || size !== "A4" || (job.pages?.length ?? 0) > 0
+  // Pages laid out several per sheet are baked into the file the server sends, so they need no page options.
+  const pickedPages = (job.pages?.length ?? 0) > 0 && (job.perSheet ?? 1) <= 1
+  const needsOptions = job.duplex || size !== "A4" || pickedPages
   return !needsOptions || versionAtLeast(device.agentVersion, MIN_AGENT_VERSION_FOR_OPTIONS)
 }
 
@@ -164,7 +171,9 @@ export async function pickDevice(shopId: Id, job: JobNeeds) {
     { $group: { _id: "$deviceId", count: { $sum: 1 } } },
   ])
   const loadOf = (d: DeviceDoc) => loads.find((l) => l._id.equals(d._id))?.count ?? 0
-  const score = (d: DeviceDoc) => loadOf(d) + (job.colorMode === "bw" && d.color ? 2 : 0)
+  // Photo sheets belong on the photo printer (photo paper); everything else stays off it when it can.
+  const photoScore = (d: DeviceDoc) => (job.kind === "photo-sheet" ? (d.photo ? -10 : 0) : d.photo ? 3 : 0)
+  const score = (d: DeviceDoc) => loadOf(d) + (job.colorMode === "bw" && d.color ? 2 : 0) + photoScore(d)
 
   return devices.sort((a, b) => score(a) - score(b))[0]
 }

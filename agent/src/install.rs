@@ -207,7 +207,7 @@ fn register_uninstall(dir: &Path) {
     }
 }
 
-fn known_folder(id: &windows::core::GUID) -> Option<PathBuf> {
+pub(crate) fn known_folder(id: &windows::core::GUID) -> Option<PathBuf> {
     unsafe {
         let path = SHGetKnownFolderPath(id, KF_FLAG_DEFAULT, None).ok()?;
         let result = path.to_string().ok().map(PathBuf::from);

@@ -1,7 +1,18 @@
 import "server-only"
-import { formatPageSelection, printerDuplexes, printerHasPaper, type ColorMode, type JobStatus, type PaperSize } from "@/lib/constants"
+import { formatPageSelection, printerDuplexes, printerHasPaper, type ColorMode, type JobKind, type JobStatus, type PaperSize } from "@/lib/constants"
 import { connectDb } from "@/lib/db"
-import { availableDevices, cashFields, colorDuplexAllowed, expireStaleJobs, orderStatus, paperOptions, paymentOptions, queuePosition, shopIsOpen } from "@/lib/jobs"
+import {
+  availableDevices,
+  cashFields,
+  colorDuplexAllowed,
+  expireStaleJobs,
+  orderStatus,
+  paperOptions,
+  paymentOptions,
+  photoSheetPrice,
+  queuePosition,
+  shopIsOpen,
+} from "@/lib/jobs"
 import { Device, PrintJob, Shop, type OrderDoc, type ShopDoc } from "@/lib/models"
 
 export async function findShopBySlug(slug: string) {
@@ -25,6 +36,8 @@ export async function publicShopView(shop: ShopDoc) {
     payments: paymentOptions(shop),
     cashFields: cashFields(shop),
     hasColor: enabled.some((d) => d.color),
+    // Passport photo sheets: the price per A4 sheet, or null when the shop doesn't offer them (needs color).
+    photoSheetPrice: enabled.some((d) => d.color) ? photoSheetPrice(shop) : null,
     // Paper sizes that one printer can print on both sides; color also needs the owner's switch.
     duplexSizes: {
       bw: papers.map((p) => p.size).filter((size) => enabled.some((d) => printerHasPaper(d, size) && printerDuplexes(d, size))),
@@ -50,6 +63,8 @@ export async function publicOrderView(order: OrderDoc, shop: ShopDoc) {
     jobs.map(async (job) => ({
       id: job.id as string,
       fileName: job.fileName,
+      kind: (job.kind ?? "document") as JobKind,
+      perSheet: job.perSheet ?? 1,
       pageCount: job.pageCount,
       printPages: job.printPages || job.pageCount,
       pagesLabel: formatPageSelection(job.pages, job.pageCount),
