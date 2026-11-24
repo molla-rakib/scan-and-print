@@ -4,7 +4,7 @@ import { useState } from "react"
 import { toast } from "sonner"
 import { applyLook, detectQuad, downloadBlob, loadImage, quadSize, warpQuad, type ImageLook, type Quad } from "../lib/imaging"
 import { pdfFile, scanPdf } from "../lib/layout-pdf"
-import { rotateQuad } from "./use-id-card-tool"
+import { rotateSide } from "./use-id-card-tool"
 
 export type ScanPage = { id: string; image: HTMLCanvasElement; quad: Quad }
 
@@ -87,7 +87,7 @@ export function useScanTool(onDone: (file: File, color: boolean) => void) {
       const file = pdfFile(await scanPdf(canvases), "scan.pdf")
       if (mode === "download") {
         downloadBlob(file, "scan.pdf")
-        toast.success("PDF ডাউনলোড হচ্ছে")
+        toast.success("PDF ডাউনলোড শুরু হয়েছে")
       } else {
         onDone(file, look === "color")
       }
@@ -108,7 +108,7 @@ export function useScanTool(onDone: (file: File, color: boolean) => void) {
     building,
     addFiles,
     setQuad: (id: string, quad: Quad) => update(id, (p) => ({ ...p, quad })),
-    rotate: (id: string) => update(id, (p) => ({ ...p, quad: rotateQuad(p.quad) })),
+    rotate: (id: string) => update(id, rotateSide),
     remove: (id: string) => setPages((list) => list.filter((p) => p.id !== id)),
     move,
     finish,

@@ -1,18 +1,19 @@
 "use client"
 
+import { CheckIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatNumber, formatPageSelection } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 import { usePagePicker } from "../hooks/use-page-picker"
 import { usePageTile } from "../hooks/use-page-tile"
+import { SHEET_CONTENT, SheetFooter, SheetHeader, TINTED } from "./tools/tool-dialog"
 
 const THUMB_WIDTH = 140
 
-/** One page preview with a checkbox on top. Drawn only once it scrolls into view. */
+/** One page preview with a round check mark on top, like picking photos on a phone. Drawn once it scrolls into view. */
 function PageTile({ file, page, checked, onToggle }: { file: File; page: number; checked: boolean; onToggle: () => void }) {
   const { ref, url } = usePageTile(file, page, THUMB_WIDTH)
 
@@ -23,22 +24,31 @@ function PageTile({ file, page, checked, onToggle }: { file: File; page: number;
       onClick={onToggle}
       aria-pressed={checked}
       aria-label={`পৃষ্ঠা ${formatNumber(page)}`}
-      className={cn(
-        "group relative flex flex-col items-center gap-1.5 rounded-lg border-2 p-1.5 text-xs transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-        checked ? "border-primary bg-primary/5" : "border-transparent bg-muted/60 hover:bg-muted"
-      )}
+      className="group relative flex flex-col items-center gap-1.5 rounded-xl p-1 text-xs outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
     >
-      <span className="relative flex aspect-[1/1.414] w-full items-center justify-center overflow-hidden rounded-sm bg-white shadow-xs">
+      <span
+        className={cn(
+          "relative flex aspect-[1/1.414] w-full items-center justify-center overflow-hidden rounded-lg bg-white shadow-sm transition",
+          checked ? "ring-[3px] ring-primary" : "ring-1 ring-black/10"
+        )}
+      >
         {url ? (
           // eslint-disable-next-line @next/next/no-img-element -- local data URL
-          <img src={url} alt="" className={cn("size-full object-contain", !checked && "opacity-45")} />
+          <img src={url} alt="" className={cn("size-full object-contain transition-opacity", !checked && "opacity-40")} />
         ) : (
           <Skeleton className="size-full rounded-none" />
         )}
       </span>
-      {/* The tile is the button; the checkbox only shows the state. */}
-      <Checkbox checked={checked} tabIndex={-1} aria-hidden className="pointer-events-none absolute top-2.5 left-2.5 size-5 bg-background shadow-sm" />
-      <span className={cn("tabular-nums", checked ? "font-medium text-primary" : "text-muted-foreground")}>{formatNumber(page)}</span>
+      <span
+        aria-hidden
+        className={cn(
+          "absolute top-2.5 right-2.5 flex size-6 items-center justify-center rounded-full shadow-sm transition-colors",
+          checked ? "bg-primary text-primary-foreground ring-2 ring-white" : "bg-white/80 ring-1 ring-black/20"
+        )}
+      >
+        {checked && <CheckIcon className="size-3.5" strokeWidth={3} />}
+      </span>
+      <span className={cn("tabular-nums", checked ? "font-semibold text-primary" : "text-muted-foreground")}>{formatNumber(page)}</span>
     </button>
   )
 }
@@ -70,24 +80,22 @@ export function PagePicker({
     onSave,
     onOpenChange,
   })
+  const pill = cn("h-8 rounded-full px-3.5 text-sm font-semibold", TINTED)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[92svh] flex-col gap-3 overflow-hidden p-0 sm:max-w-2xl">
-        <DialogHeader className="px-4 pt-4">
-          <DialogTitle>পৃষ্ঠা বাছুন</DialogTitle>
-          <DialogDescription className="truncate">{fileName}</DialogDescription>
-        </DialogHeader>
+      <DialogContent showCloseButton={false} className={cn(SHEET_CONTENT, "sm:max-w-2xl")}>
+        <SheetHeader title="পৃষ্ঠা নির্বাচন" description={<span className="block truncate">{fileName}</span>} />
 
-        <div className="flex flex-col gap-2 px-4">
+        <div className="flex flex-col gap-3 px-5 pb-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="outline" onClick={selectAll}>
-              সব
+            <Button size="sm" className={pill} onClick={selectAll}>
+              Select All
             </Button>
-            <Button size="sm" variant="outline" onClick={selectNone}>
-              কোনোটি না
+            <Button size="sm" className={pill} onClick={selectNone}>
+              Clear
             </Button>
-            <span className="ml-auto text-sm text-muted-foreground">
+            <span className="ml-auto text-sm font-medium text-muted-foreground tabular-nums">
               {formatNumber(selected.size)} / {formatNumber(pageCount)} পৃষ্ঠা
             </span>
           </div>
@@ -95,38 +103,33 @@ export function PagePicker({
             <Input
               value={ranges}
               onChange={(e) => setRanges(e.target.value)}
-              placeholder="যেমন: ১-৩, ৫, ৮"
-              aria-label="পৃষ্ঠার নম্বর লিখুন"
+              placeholder="পৃষ্ঠা নম্বর লিখুন, যেমন: ১-৩, ৫, ৮"
+              aria-label="পৃষ্ঠা নম্বর লিখুন"
               aria-invalid={rangeError}
               inputMode="numeric"
-              className="h-10 flex-1"
+              className="h-11 flex-1 rounded-xl border-transparent bg-foreground/[0.06]"
             />
-            <Button type="submit" variant="secondary" className="h-10 shrink-0 px-4" disabled={!ranges.trim()}>
-              বাছুন
+            <Button type="submit" className={cn("h-11 shrink-0 rounded-xl px-4 font-semibold", TINTED)} disabled={!ranges.trim()}>
+              Apply
             </Button>
           </form>
-          {rangeError && <p className="text-xs text-destructive">এভাবে লিখুন: ১-৩, ৫ (১ থেকে {formatNumber(pageCount)})</p>}
+          {rangeError && <p className="px-0.5 text-xs text-destructive">এভাবে লিখুন: ১-৩, ৫ (১ থেকে {formatNumber(pageCount)} এর মধ্যে)</p>}
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-3 content-start gap-2 overflow-y-auto border-y bg-muted/30 p-3 sm:grid-cols-5">
+        <div className="grid min-h-0 flex-1 grid-cols-3 content-start gap-2 overflow-y-auto border-t border-border/60 bg-muted/50 p-3 sm:grid-cols-5">
           {Array.from({ length: pageCount }, (_, i) => i + 1).map((page) => (
             <PageTile key={page} file={file} page={page} checked={selected.has(page)} onToggle={() => toggle(page)} />
           ))}
         </div>
 
-        {/* The dialog has no padding, so undo the footer's negative margins and let the grid's border separate it. */}
-        <DialogFooter className="mx-0 mb-0 flex-row items-center justify-between gap-3 border-t-0 px-4 py-3 sm:justify-between">
+        <SheetFooter className="flex items-center justify-between gap-3">
           <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-            {selected.size ? formatPageSelection(sorted, pageCount) : "অন্তত একটি পৃষ্ঠা বাছুন"}
+            {selected.size ? formatPageSelection(sorted, pageCount) : "অন্তত একটি পৃষ্ঠা নির্বাচন করুন"}
           </span>
-          <Button
-            className="h-10 shrink-0 px-6"
-            disabled={selected.size === 0}
-            onClick={save}
-          >
+          <Button className="h-11 shrink-0 rounded-xl px-7 text-base font-semibold" disabled={selected.size === 0} onClick={save}>
             Done
           </Button>
-        </DialogFooter>
+        </SheetFooter>
       </DialogContent>
     </Dialog>
   )

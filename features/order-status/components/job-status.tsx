@@ -215,7 +215,7 @@ export function JobStatusView({ initial, paymentResult }: { initial: PublicOrder
           <>
             {job.shop.payments.bkash && (
               <BkashButton
-                label="দিয়ে আবার পেমেন্ট করুন"
+                label="Pay Again with"
                 pending={paying === "bkash"}
                 disabled={!!paying}
                 onClick={() => retry("bkash")}

@@ -11,7 +11,7 @@ import { cropRect, initialCropView, type CropView } from "./use-crop-editor"
 export const PHOTO_SIZES = {
   passport: { label: "পাসপোর্ট (৪০ × ৫০ মিমি)", widthMm: 40, heightMm: 50 },
   visa: { label: "ভিসা (৩৫ × ৪৫ মিমি)", widthMm: 35, heightMm: 45 },
-  us: { label: "আমেরিকান ভিসা (২ × ২ ইঞ্চি)", widthMm: 51, heightMm: 51 },
+  us: { label: "US ভিসা (২ × ২ ইঞ্চি)", widthMm: 51, heightMm: 51 },
 } as const
 export type PhotoSize = keyof typeof PHOTO_SIZES
 /** Stamp-size photos, offered beside passport photos (same shape, so the same crop works). */
@@ -105,7 +105,7 @@ export function usePhotoTool(onDone: (file: File) => void) {
       ])
       onDone(pdfFile(bytes, "passport-photos.pdf"))
     } catch (error) {
-      toast.error((error as Error).message || "ছবির পাতা তৈরি করা যায়নি।")
+      toast.error((error as Error).message || "ছবির পাতা তৈরি করা যায়নি। আবার চেষ্টা করুন।")
     } finally {
       setBuilding(false)
     }

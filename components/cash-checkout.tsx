@@ -7,6 +7,7 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { formatTaka, normalizeBdPhone } from "@/lib/constants"
+import { cn } from "@/lib/utils"
 
 export type CashCustomer = { name: string; phone: string }
 /** Which details the shop asks for (set in Settings → পেমেন্ট); shown fields are required. */
@@ -24,7 +25,7 @@ function savedCustomer(): CashCustomer {
 }
 
 /**
- * "কাউন্টারে ক্যাশ দেব" button. Cash orders print without the shop's approval, so the first tap asks
+ * "Pay Cash at Counter" button. Cash orders print without the shop's approval, so the first tap asks
  * for the customer's name and/or mobile number (whichever the shop asks for, all required); the second
  * places the order.
  */
@@ -79,14 +80,14 @@ export function CashCheckout({
         <form
           id="cash-form"
           noValidate
-          className="flex w-full flex-col gap-3 rounded-xl border bg-muted/40 p-4"
+          className="flex w-full flex-col gap-3 rounded-xl bg-muted/60 p-4"
           onSubmit={(e) => {
             e.preventDefault()
             submit()
           }}
         >
           <p className="text-sm text-muted-foreground">
-            অর্ডারটি সাথে সাথে প্রিন্ট হবে। কাউন্টারে টোকেন দেখিয়ে {formatTaka(amount)} দিন।
+            অর্ডার দেওয়ার সঙ্গে সঙ্গে প্রিন্ট শুরু হবে। কাউন্টারে টোকেন নম্বর দেখিয়ে {formatTaka(amount)} পরিশোধ করুন।
           </p>
           {fields.name && (
             <Field data-invalid={!!errors.name}>
@@ -95,6 +96,7 @@ export function CashCheckout({
                 ref={nameRef}
                 id="cash-name"
                 autoComplete="name"
+                className="h-11 rounded-xl bg-background"
                 maxLength={80}
                 value={customer.name}
                 aria-invalid={!!errors.name}
@@ -117,6 +119,7 @@ export function CashCheckout({
                 inputMode="tel"
                 autoComplete="tel"
                 placeholder="01XXXXXXXXX"
+                className="h-11 rounded-xl bg-background"
                 maxLength={20}
                 value={customer.phone}
                 aria-invalid={!!errors.phone}
@@ -135,8 +138,8 @@ export function CashCheckout({
         size="lg"
         type={open ? "submit" : "button"}
         form={open ? "cash-form" : undefined}
-        variant={outline && !open ? "outline" : "default"}
-        className="h-12 w-full text-base"
+        variant={outline && !open ? "ghost" : "default"}
+        className={cn("h-12 w-full rounded-xl text-base font-semibold", outline && !open && "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary dark:bg-primary/20")}
         disabled={disabled}
         onClick={
           open
@@ -148,7 +151,7 @@ export function CashCheckout({
               }
         }
       >
-        {pending ? <Spinner /> : <BanknoteIcon />} {open ? "অর্ডার দিন, ক্যাশে টাকা দেব" : "কাউন্টারে ক্যাশ দেব"}
+        {pending ? <Spinner /> : <BanknoteIcon />} {open ? "Place Order" : "Pay Cash at Counter"}
       </Button>
     </>
   )

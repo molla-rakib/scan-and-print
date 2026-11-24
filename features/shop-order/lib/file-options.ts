@@ -60,8 +60,8 @@ export function duplexAvailable(shop: PublicShopView, item: FileItem) {
 /** Why "both sides" isn't offered for these options, when the shop does print both sides on something. */
 export function sidesNote(shop: PublicShopView, options: PrintOptions) {
   const size = PAPER_SIZE_LABELS[options.paperSize]
-  if (options.colorMode === "color" && duplexOffered(shop, "bw", options.paperSize)) return "রঙিন প্রিন্ট শুধু কাগজের এক পাশে হয়"
-  return `${size} কাগজে শুধু এক পাশে প্রিন্ট হয়`
+  if (options.colorMode === "color" && duplexOffered(shop, "bw", options.paperSize)) return "রঙিন প্রিন্ট শুধু এক পাশে করা যায়"
+  return `${size} কাগজে শুধু এক পাশে প্রিন্ট করা যায়`
 }
 
 /** The options as they will be ordered: "both sides" is dropped when it no longer applies. */

@@ -13,8 +13,8 @@ type Tool = "id-card" | "scan" | "photo" | "form"
 
 const TOOLS: { id: Tool; icon: LucideIcon; title: string; hint: string }[] = [
   { id: "id-card", icon: IdCardIcon, title: "NID / আইডি কার্ড কপি", hint: "দুই পাশ এক পাতায়" },
-  { id: "photo", icon: SquareUserIcon, title: "পাসপোর্ট ছবি", hint: "সাইজ মতো কেটে" },
-  { id: "scan", icon: ScanLineIcon, title: "ক্যামেরা স্ক্যান", hint: "কাগজের ছবি থেকে PDF" },
+  { id: "photo", icon: SquareUserIcon, title: "পাসপোর্ট ছবি", hint: "সঠিক মাপে প্রিন্ট" },
+  { id: "scan", icon: ScanLineIcon, title: "ডকুমেন্ট স্ক্যান", hint: "কাগজের ছবি থেকে PDF" },
   { id: "form", icon: SignatureIcon, title: "ফর্মের ছবি ও সই", hint: "অনলাইন আবেদনের মাপে" },
 ]
 
@@ -49,15 +49,15 @@ export function ToolsGrid({
             disabled={disabled}
             onClick={() => setOpen(id)}
             className={cn(
-              "flex items-center gap-2.5 rounded-xl border bg-card text-left transition-colors outline-none hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50",
-              compact ? "p-2.5" : "p-3"
+              "flex gap-3 rounded-2xl bg-card text-left shadow-sm ring-1 ring-foreground/5 transition outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-[0.98] disabled:opacity-50",
+              compact ? "items-center p-2.5" : "flex-col items-start p-3.5"
             )}
           >
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <Icon className="size-5" />
             </span>
-            <span className="flex min-w-0 flex-col">
-              <span className="text-sm leading-tight font-medium">{title}</span>
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span className="text-sm leading-tight font-semibold">{title}</span>
               {!compact && <span className="text-xs text-muted-foreground">{hint}</span>}
             </span>
           </button>

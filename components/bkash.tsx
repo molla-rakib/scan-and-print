@@ -13,16 +13,18 @@ export function BkashLogo({ className }: { className?: string }) {
   )
 }
 
+/** bKash pay button: "<label> [bKash logo]", e.g. "Pay with bKash". */
 export function BkashButton({ pending, disabled, label, onClick }: { pending: boolean; disabled: boolean; label: string; onClick: () => void }) {
   return (
     <Button
       size="lg"
-      className="h-13 w-full gap-3 bg-[#E2136E] text-base text-white hover:bg-[#c8105f]"
+      className="h-13 w-full gap-2.5 rounded-xl bg-[#E2136E] text-base font-semibold text-white shadow-sm shadow-[#E2136E]/25 hover:bg-[#c8105f]"
       disabled={disabled}
       onClick={onClick}
     >
-      {pending ? <Spinner /> : <BkashLogo />}
+      {pending && <Spinner />}
       <span>{label}</span>
+      <BkashLogo />
     </Button>
   )
 }

@@ -2,13 +2,13 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
-import { applyLook, detectQuad, loadImage, quadSize, stampText, warpQuad, type ImageLook, type Quad } from "../lib/imaging"
+import { applyLook, detectQuad, loadImage, quadSize, rotate90, stampText, warpQuad, type ImageLook, type Quad } from "../lib/imaging"
 import { cardCopyPdf, maxCardSets, pdfFile } from "../lib/layout-pdf"
 
 /** Card sizes in mm. ISO ID-1 covers the smart NID, bank/ATM cards and the smart driving licence. */
 export const CARD_TYPES = {
-  id1: { label: "স্মার্ট NID / ATM / ড্রাইভিং লাইসেন্স", widthMm: 85.6, heightMm: 54 },
-  custom: { label: "অন্য মাপের কার্ড", widthMm: 90, heightMm: 60 },
+  id1: { label: "NID / ATM / লাইসেন্স", widthMm: 85.6, heightMm: 54 },
+  custom: { label: "অন্য মাপ", widthMm: 90, heightMm: 60 },
 } as const
 export type CardType = keyof typeof CARD_TYPES
 
@@ -20,6 +20,17 @@ export type CardSide = { image: HTMLCanvasElement; quad: Quad }
 /** Turns the corners one step, so the straightened card turns 90°. */
 export function rotateQuad(quad: Quad): Quad {
   return [quad[3], quad[0], quad[1], quad[2]]
+}
+
+/**
+ * Turns the photo itself 90° clockwise, its corners with it, and the corners one step, so the editor shows the
+ * photo the way it will print (the first corner stays at the top-left as seen) and the result turns with it.
+ */
+export function rotateSide<T extends CardSide>(side: T): T {
+  const { height } = side.image
+  // Clockwise: (x, y) on the old photo lands at (height - y, x) on the turned one.
+  const turned = side.quad.map((p) => ({ x: height - p.y, y: p.x })) as Quad
+  return { ...side, image: rotate90(side.image), quad: rotateQuad(turned) }
 }
 
 /**
@@ -49,12 +60,12 @@ export function useIdCardTool(onDone: (file: File, color: boolean) => void) {
     setLoading(true)
     try {
       const image = await loadImage(file)
-      let quad = detectQuad(image)
+      const quad = detectQuad(image)
       // A card photographed the other way round from its size (upright for a landscape card, or the
-      // reverse): turn the corners so it isn't squashed into the wrong shape.
+      // reverse): turn the photo so it isn't squashed into the wrong shape.
       const measured = quadSize(quad)
-      if (measured.width >= measured.height !== size.widthMm >= size.heightMm) quad = rotateQuad(quad)
-      const value = { image, quad }
+      const turn = measured.width >= measured.height !== size.widthMm >= size.heightMm
+      const value = turn ? rotateSide({ image, quad }) : { image, quad }
       if (side === "front") setFront(value)
       else setBack(value)
       setEditing(side)
@@ -69,7 +80,7 @@ export function useIdCardTool(onDone: (file: File, color: boolean) => void) {
     (side === "front" ? setFront : setBack)((current) => (current ? { ...current, quad } : current))
 
   const rotate = (side: "front" | "back") =>
-    (side === "front" ? setFront : setBack)((current) => (current ? { ...current, quad: rotateQuad(current.quad) } : current))
+    (side === "front" ? setFront : setBack)((current) => (current ? rotateSide(current) : current))
 
   /** The straightened, cleaned side at print resolution. */
   function render(side: CardSide) {

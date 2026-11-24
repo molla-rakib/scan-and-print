@@ -31,7 +31,7 @@ export function CropEditor({
     <div className="flex flex-col items-center gap-3">
       <div
         {...frameProps}
-        className="relative cursor-grab touch-none overflow-hidden rounded-md bg-muted shadow-sm ring-2 ring-primary select-none active:cursor-grabbing"
+        className="relative cursor-grab touch-none overflow-hidden rounded-xl bg-muted shadow-md ring-2 ring-primary select-none active:cursor-grabbing"
         style={{ width: FRAME_WIDTH, height }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- local preview of the customer's photo */}

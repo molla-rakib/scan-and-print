@@ -1,20 +1,6 @@
 "use client"
 
-import {
-  ChevronRightIcon,
-  CircleAlertIcon,
-  CopyIcon,
-  FileTextIcon,
-  LayoutGridIcon,
-  LayersIcon,
-  ListChecksIcon,
-  MinusIcon,
-  PaletteIcon,
-  PlusIcon,
-  RulerIcon,
-  XIcon,
-  type LucideIcon,
-} from "lucide-react"
+import { ChevronRightIcon, CircleAlertIcon, FileTextIcon, LayersIcon, ListChecksIcon, MinusIcon, PlusIcon, XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -37,72 +23,15 @@ import { useFileCard } from "../hooks/use-file-card"
 import { usePageThumbnail } from "../hooks/use-page-thumbnail"
 import type { FileItem, PrintOptions } from "../lib/file-options"
 import { PagePicker } from "./page-picker"
+import { ChoiceRow } from "./tools/choice-row"
+import { FIELD_LABEL } from "./tools/tool-dialog"
 
-/** A label with an icon above each option group. */
-function OptionLabel({ icon: Icon, children }: { icon: LucideIcon; children: React.ReactNode }) {
-  return (
-    <span className="flex items-center gap-2 text-sm font-medium">
-      <Icon className="size-4 text-primary" />
-      {children}
-    </span>
-  )
-}
-
-/** A row of mutually exclusive choices; the chosen one is filled in the primary color. */
-function Segmented<T extends string>({
-  icon,
-  label,
-  value,
-  options,
-  onChange,
-  disabled,
-}: {
-  icon: LucideIcon
-  label: string
-  value: T
-  options: { value: T; label: string; hint?: string; disabled?: boolean }[]
-  onChange: (value: T) => void
-  disabled?: boolean
-}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <OptionLabel icon={icon}>{label}</OptionLabel>
-      <div role="radiogroup" aria-label={label} className="grid auto-cols-fr grid-flow-col gap-1.5 rounded-xl bg-muted p-1.5">
-        {options.map((option) => {
-          const active = option.value === value
-          return (
-            <button
-              key={option.value}
-              type="button"
-              role="radio"
-              aria-checked={active}
-              disabled={disabled || option.disabled}
-              onClick={() => onChange(option.value)}
-              className={cn(
-                "flex min-h-12 flex-col items-center justify-center rounded-lg px-2 py-1.5 text-sm transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-45",
-                active
-                  ? "bg-primary font-semibold text-primary-foreground shadow-sm"
-                  : "font-medium text-foreground hover:bg-background/70"
-              )}
-            >
-              {option.label}
-              {option.hint && (
-                <span className={cn("text-xs font-normal", active ? "text-primary-foreground/85" : "text-muted-foreground")}>
-                  {option.hint}
-                </span>
-              )}
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
+const THUMB_BOX = "flex h-16 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-black/5"
 
 function Thumbnail({ file }: { file: File }) {
   const url = usePageThumbnail(file, 1, 64)
   return (
-    <span className="flex h-16 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-white">
+    <span className={THUMB_BOX}>
       {url ? (
         // eslint-disable-next-line @next/next/no-img-element -- local preview
         <img src={url} alt="" className="size-full object-cover object-top" />
@@ -151,10 +80,10 @@ export function FileCard({
   } = useFileCard(item, shop, disabled, onChange)
 
   return (
-    <div className="flex flex-col gap-5 rounded-xl border bg-card p-4 shadow-xs">
+    <div className="flex flex-col gap-5 overflow-hidden rounded-2xl bg-card p-4 shadow-sm ring-1 ring-foreground/5">
       <div className="flex items-center gap-3">
         {item.state === "error" ? (
-          <span className="flex h-16 w-12 shrink-0 items-center justify-center rounded-md border bg-destructive/10 text-destructive">
+          <span className={cn(THUMB_BOX, "bg-destructive/10 text-destructive")}>
             <CircleAlertIcon />
           </span>
         ) : ready ? (
@@ -162,42 +91,48 @@ export function FileCard({
             type="button"
             disabled={!canPick}
             onClick={() => setPicking(true)}
-            aria-label="পৃষ্ঠা দেখুন ও বাছুন"
-            className="shrink-0 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-default"
+            aria-label="পৃষ্ঠা দেখুন ও নির্বাচন করুন"
+            className="shrink-0 rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-default"
           >
             <Thumbnail file={item.file} />
           </button>
         ) : (
-          <span className="flex h-16 w-12 shrink-0 items-center justify-center rounded-md border bg-muted text-muted-foreground">
+          <span className={cn(THUMB_BOX, "bg-muted text-muted-foreground")}>
             <FileTextIcon />
           </span>
         )}
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          {index !== null && <span className="text-xs font-medium text-primary">ফাইল {formatNumber(index)}</span>}
-          <div className="truncate font-medium">{item.file.name}</div>
-          {item.kind !== "document" && <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">{JOB_KIND_LABELS[item.kind]}</span>}
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          {(index !== null || item.kind !== "document") && (
+            <span className="flex items-center gap-1.5 text-xs font-semibold">
+              {index !== null && <span className="text-primary">ফাইল {formatNumber(index)}</span>}
+              {item.kind !== "document" && (
+                <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-emerald-700 dark:text-emerald-400">{JOB_KIND_LABELS[item.kind]}</span>
+              )}
+            </span>
+          )}
+          <div className="truncate font-semibold">{item.file.name}</div>
           {ready ? (
-            <div className="text-sm text-muted-foreground">মোট {formatNumber(pageCount)} পৃষ্ঠা</div>
+            <div className="text-sm text-muted-foreground">{formatNumber(pageCount)} পৃষ্ঠা</div>
           ) : item.state === "error" ? (
             <div className="text-sm text-destructive">{item.error}</div>
           ) : item.state === "uploading" ? (
-            <Progress value={item.progress} className="max-w-48" />
+            <Progress value={item.progress} className="mt-1 max-w-48" />
           ) : (
             <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <Spinner className="size-3.5" />
-              {item.state === "analyzing" ? "যাচাই হচ্ছে…" : "অপেক্ষায়…"}
+              {item.state === "analyzing" ? "প্রস্তুত হচ্ছে…" : "অপেক্ষমাণ…"}
             </div>
           )}
         </div>
         <Button
           variant="ghost"
-          size="icon"
-          aria-label="ফাইলটি বাদ দিন"
-          className="text-muted-foreground hover:text-destructive"
+          size="icon-sm"
+          aria-label="ফাইলটি সরিয়ে ফেলুন"
+          className="shrink-0 self-start rounded-full bg-foreground/[0.06] text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
           onClick={onRemove}
           disabled={disabled || item.state === "uploading" || item.state === "analyzing"}
         >
-          <XIcon />
+          <XIcon className="size-4" strokeWidth={2.5} />
         </Button>
       </div>
 
@@ -209,21 +144,21 @@ export function FileCard({
                 type="button"
                 disabled={!canPick}
                 onClick={() => setPicking(true)}
-                className="flex w-full items-center gap-3 rounded-xl border border-primary/25 bg-primary/5 p-3 text-left transition-colors outline-none hover:bg-primary/10 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60"
+                className="flex w-full items-center gap-3 rounded-xl bg-foreground/[0.04] p-3 text-left transition-colors outline-none hover:bg-foreground/[0.07] focus-visible:ring-3 focus-visible:ring-ring/50 active:bg-foreground/10 disabled:opacity-60"
               >
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <ListChecksIcon className="size-5" />
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-primary text-primary-foreground">
+                  <ListChecksIcon className="size-[1.125rem]" />
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="text-sm font-medium">কোন পৃষ্ঠা প্রিন্ট হবে?</span>
+                  <span className="text-sm font-semibold">পৃষ্ঠা নির্বাচন</span>
                   <span className="truncate text-sm text-muted-foreground">
                     {options.pages.length
                       ? `${formatPageSelection(options.pages, pageCount)} (${formatNumber(options.pages.length)}টি)`
                       : `সব পৃষ্ঠা (${formatNumber(pageCount)}টি)`}
                   </span>
                 </span>
-                <span className="flex shrink-0 items-center gap-1 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground shadow-sm">
-                  পৃষ্ঠা বাছুন
+                <span className="flex shrink-0 items-center gap-0.5 text-sm font-semibold text-primary">
+                  Select
                   <ChevronRightIcon className="size-4" />
                 </span>
               </button>
@@ -242,43 +177,40 @@ export function FileCard({
           )}
 
           {!photoSheet && (
-          <Segmented
-            icon={PaletteIcon}
-            label="প্রিন্টের রং"
-            value={options.colorMode}
-            disabled={disabled}
-            onChange={(colorMode) => set({ colorMode })}
-            options={[
-              { value: "bw", label: "সাদা-কালো", hint: unitHint(paper, "bw") },
-              {
-                value: "color",
-                label: "রঙিন",
-                hint: shop.hasColor ? unitHint(paper, "color") : "পাওয়া যায় না",
-                disabled: !shop.hasColor,
-              },
-            ]}
-          />
+            <ChoiceRow
+              label="রং"
+              value={options.colorMode}
+              disabled={disabled}
+              onChange={(colorMode) => set({ colorMode })}
+              options={[
+                { value: "bw", label: "সাদা-কালো", hint: unitHint(paper, "bw") },
+                {
+                  value: "color",
+                  label: "রঙিন",
+                  hint: shop.hasColor ? unitHint(paper, "color") : "উপলব্ধ নয়",
+                  disabled: !shop.hasColor,
+                },
+              ]}
+            />
           )}
 
           {perSheetChoice && (
-            <Segmented
-              icon={LayoutGridIcon}
-              label="এক পাতায় কয়টি পৃষ্ঠা?"
+            <ChoiceRow
+              label="প্রতি পাতায় পৃষ্ঠা"
               value={String(options.perSheet)}
               disabled={disabled}
               onChange={(value) => set({ perSheet: Number(value) as PagesPerSheet })}
               options={[
-                { value: "1", label: "১টি", hint: "সাধারণ" },
-                { value: "2", label: "২টি", hint: "ছোট করে" },
+                { value: "1", label: "১টি", hint: "স্বাভাবিক" },
+                { value: "2", label: "২টি", hint: "ছোট আকারে" },
                 { value: "4", label: "৪টি", hint: "আরও ছোট" },
               ]}
             />
           )}
 
           {photoSheet ? null : showSides ? (
-            <Segmented
-              icon={LayersIcon}
-              label="কাগজের এক পাশে না দুই পাশে?"
+            <ChoiceRow
+              label="প্রিন্টের পাশ"
               value={duplex ? "both" : "single"}
               disabled={disabled}
               onChange={(value) => set({ duplex: value === "both" })}
@@ -294,7 +226,7 @@ export function FileCard({
           ) : (
             printed > 1 &&
             (shop.duplexSizes.bw.length > 0 || shop.duplexSizes.color.length > 0) && (
-              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <p className="flex items-center gap-2 px-0.5 text-sm text-muted-foreground">
                 <LayersIcon className="size-4 shrink-0" />
                 {sidesNote}
               </p>
@@ -302,8 +234,7 @@ export function FileCard({
           )}
 
           {sizeChoice && (
-            <Segmented
-              icon={RulerIcon}
+            <ChoiceRow
               label="কাগজের মাপ"
               value={options.paperSize}
               disabled={disabled}
@@ -317,26 +248,26 @@ export function FileCard({
           )}
 
           <div className="flex items-center justify-between gap-3">
-            <OptionLabel icon={CopyIcon}>কত কপি?</OptionLabel>
-            <div className="flex items-center gap-1 rounded-xl bg-muted p-1.5">
+            <span className={FIELD_LABEL}>কপি</span>
+            <div className="flex items-center rounded-full bg-foreground/[0.06] p-0.5">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="icon"
-                className="size-10 bg-background"
-                aria-label="কমান"
+                className="size-10 rounded-full hover:bg-background"
+                aria-label="কপি কমান"
                 disabled={disabled || options.copies <= 1}
                 onClick={() => set({ copies: options.copies - 1 })}
               >
                 <MinusIcon />
               </Button>
-              <span className="w-12 text-center text-xl font-semibold tabular-nums" aria-live="polite">
+              <span className="w-10 text-center text-lg font-semibold tabular-nums" aria-live="polite">
                 {formatNumber(options.copies)}
               </span>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="icon"
-                className="size-10 bg-background"
-                aria-label="বাড়ান"
+                className="size-10 rounded-full hover:bg-background"
+                aria-label="কপি বাড়ান"
                 disabled={disabled || options.copies >= MAX_COPIES}
                 onClick={() => set({ copies: options.copies + 1 })}
               >
@@ -345,9 +276,9 @@ export function FileCard({
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-3 rounded-xl bg-emerald-500/10 px-4 py-3">
+          <div className="-mx-4 -mb-4 flex items-center justify-between gap-3 border-t border-border/60 bg-muted/50 px-4 py-3">
             <div className="min-w-0">
-              <div className="text-sm font-medium text-emerald-800 dark:text-emerald-300">এই ফাইলের দাম</div>
+              <div className="text-sm font-semibold">এই ফাইলের মূল্য</div>
               <div className="text-xs text-muted-foreground">
                 {photoSheet ? (
                   <>
@@ -355,7 +286,7 @@ export function FileCard({
                   </>
                 ) : (
                   <>
-                    {printed !== selected && `${formatNumber(selected)} পৃষ্ঠা পাতায় ${formatNumber(options.perSheet)}টি করে = `}
+                    {printed !== selected && `${formatNumber(selected)} পৃষ্ঠা, প্রতি পাতায় ${formatNumber(options.perSheet)}টি = `}
                     {duplex
                       ? `${formatNumber(printed)} পৃষ্ঠা = ${formatNumber(sheetCount(printed, true))} কাগজ`
                       : `${formatNumber(printed)} পৃষ্ঠা`}{" "}
@@ -364,9 +295,7 @@ export function FileCard({
                 )}
               </div>
             </div>
-            <span className="text-xl font-semibold text-emerald-800 tabular-nums dark:text-emerald-300">
-              {formatTaka(total)}
-            </span>
+            <span className="text-xl font-bold tracking-tight tabular-nums">{formatTaka(total)}</span>
           </div>
         </>
       )}

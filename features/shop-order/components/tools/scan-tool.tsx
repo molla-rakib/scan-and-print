@@ -1,16 +1,17 @@
 "use client"
 
 import { useMemo } from "react"
-import { ArrowDownIcon, ArrowUpIcon, CheckIcon, DownloadIcon, PencilIcon, RotateCwIcon, Trash2Icon } from "lucide-react"
+import { CheckIcon, ChevronDownIcon, ChevronUpIcon, CropIcon, DownloadIcon, RotateCwIcon, Trash2Icon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { formatNumber } from "@/lib/constants"
+import { cn } from "@/lib/utils"
 import { MAX_SCAN_PAGES, useScanTool, type ScanPage } from "../../hooks/use-scan-tool"
 import { applyLook, quadSize, warpQuad, type ImageLook } from "../../lib/imaging"
 import { ChoiceRow } from "./choice-row"
 import { ImagePicker } from "./image-picker"
 import { QuadEditor } from "./quad-editor"
-import { ToolDialog } from "./tool-dialog"
+import { TINTED, TOOL_BUTTON, ToolDialog, ToolHint } from "./tool-dialog"
 
 function PagePreview({ page, look }: { page: ScanPage; look: ImageLook }) {
   const url = useMemo(() => {
@@ -19,8 +20,10 @@ function PagePreview({ page, look }: { page: ScanPage; look: ImageLook }) {
     return applyLook(warpQuad(page.image, page.quad, width * scale, height * scale), look).toDataURL("image/jpeg", 0.8)
   }, [page, look])
   // eslint-disable-next-line @next/next/no-img-element -- local preview
-  return <img src={url} alt="" className="h-28 w-auto rounded-md border bg-white shadow-xs" />
+  return <img src={url} alt="" className="h-20 w-auto shrink-0 rounded-md bg-white shadow-md ring-1 ring-black/5" />
 }
+
+const ICON_BUTTON = "size-9 rounded-full bg-background text-foreground/70 shadow-xs hover:bg-background hover:text-foreground"
 
 /** Camera scan: photos of paper pages → one clean PDF, printed in this order or downloaded to the phone. */
 export function ScanTool({ open, onOpenChange, onDone }: { open: boolean; onOpenChange: (open: boolean) => void; onDone: (file: File, color: boolean) => void }) {
@@ -35,68 +38,75 @@ export function ScanTool({ open, onOpenChange, onDone }: { open: boolean; onOpen
     <ToolDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="ক্যামেরা স্ক্যান"
-      description="কাগজের ছবি তুলুন। ছবি সোজা ও পরিষ্কার হয়ে একটি PDF হবে: প্রিন্ট করুন বা ফোনে রাখুন।"
+      title="ডকুমেন্ট স্ক্যান"
+      description="কাগজের ছবি তুলুন। ছবিগুলো সোজা ও পরিষ্কার হয়ে একটি PDF তৈরি হবে, যা প্রিন্ট বা ডাউনলোড করতে পারবেন।"
       footer={
-        <div className="grid w-full grid-cols-2 gap-2">
-          <Button variant="outline" className="h-11" disabled={blocked} onClick={() => t.finish("download")}>
-            {t.building === "download" ? <Spinner /> : <DownloadIcon />} PDF ডাউনলোড
+        <div className="grid w-full grid-cols-2 gap-3">
+          <Button className={cn(TOOL_BUTTON, TINTED)} disabled={blocked} onClick={() => t.finish("download")}>
+            {t.building === "download" ? <Spinner /> : <DownloadIcon />} Download PDF
           </Button>
-          <Button className="h-11" disabled={blocked} onClick={() => t.finish("order")}>
-            {t.building === "order" && <Spinner />} প্রিন্টে দিন
+          <Button className={TOOL_BUTTON} disabled={blocked} onClick={() => t.finish("order")}>
+            {t.building === "order" && <Spinner />} Add to Order
           </Button>
         </div>
       }
     >
       {editingPage ? (
-        <section className="flex flex-col gap-3">
-          <p className="text-sm text-muted-foreground">গোল দাগগুলো টেনে পাতার চার কোণায় বসান।</p>
+        <section className="flex flex-col gap-4">
+          <ToolHint>চারটি কোণ টেনে পাতার কিনারার সঙ্গে মিলিয়ে দিন।</ToolHint>
           <QuadEditor image={editingPage.image} quad={editingPage.quad} onChange={(quad) => t.setQuad(editingPage.id, quad)} />
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" onClick={() => t.rotate(editingPage.id)}>
-              <RotateCwIcon /> ঘোরান
+          <div className="grid grid-cols-2 gap-3">
+            <Button className={cn(TOOL_BUTTON, TINTED)} onClick={() => t.rotate(editingPage.id)}>
+              <RotateCwIcon /> Rotate
             </Button>
-            <Button onClick={() => t.setEditing(null)}>
-              <CheckIcon /> ঠিক আছে
+            <Button className={TOOL_BUTTON} onClick={() => t.setEditing(null)}>
+              <CheckIcon /> Done
             </Button>
           </div>
         </section>
       ) : (
         <>
           <ChoiceRow<ImageLook>
-            label="কেমন দেখাবে"
+            label="ফিল্টার"
             value={t.look}
             onChange={t.setLook}
             options={[
-              { value: "bw", label: "ফটোকপির মতো" },
-              { value: "gray", label: "ধূসর" },
+              { value: "bw", label: "সাদা-কালো" },
+              { value: "gray", label: "গ্রেস্কেল" },
               { value: "color", label: "রঙিন" },
             ]}
           />
           {t.pages.length > 0 && (
-            <ol className="flex flex-col gap-2">
+            <ol className="flex flex-col divide-y divide-border/70 overflow-hidden rounded-2xl bg-muted/70">
               {t.pages.map((page, i) => (
-                <li key={page.id} className="flex items-center gap-3 rounded-xl border p-2">
-                  <span className="w-6 text-center text-sm font-medium text-muted-foreground">{formatNumber(i + 1)}</span>
+                <li key={page.id} className="flex items-center gap-3 p-3">
                   <PagePreview page={page} look={t.look} />
-                  <div className="ml-auto grid grid-cols-2 gap-1">
-                    <Button variant="ghost" size="icon" aria-label="কোণা ঠিক করুন" onClick={() => t.setEditing(page.id)}>
-                      <PencilIcon />
-                    </Button>
-                    <Button variant="ghost" size="icon" aria-label="বাদ দিন" className="text-destructive" onClick={() => t.remove(page.id)}>
-                      <Trash2Icon />
-                    </Button>
-                    <Button variant="ghost" size="icon" aria-label="ওপরে নিন" disabled={i === 0} onClick={() => t.move(page.id, -1)}>
-                      <ArrowUpIcon />
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold">পৃষ্ঠা {formatNumber(i + 1)}</span>
+                  <div className="flex items-center gap-1.5">
+                    <Button variant="ghost" size="icon" aria-label="উপরে সরান" className={ICON_BUTTON} disabled={i === 0} onClick={() => t.move(page.id, -1)}>
+                      <ChevronUpIcon />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      aria-label="নিচে নিন"
+                      aria-label="নিচে সরান"
+                      className={ICON_BUTTON}
                       disabled={i === t.pages.length - 1}
                       onClick={() => t.move(page.id, 1)}
                     >
-                      <ArrowDownIcon />
+                      <ChevronDownIcon />
+                    </Button>
+                    <Button variant="ghost" size="icon" aria-label="কোণ ঠিক করুন" className={ICON_BUTTON} onClick={() => t.setEditing(page.id)}>
+                      <CropIcon />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="মুছে ফেলুন"
+                      className={cn(ICON_BUTTON, "text-destructive hover:text-destructive")}
+                      onClick={() => t.remove(page.id)}
+                    >
+                      <Trash2Icon />
                     </Button>
                   </div>
                 </li>
@@ -104,17 +114,12 @@ export function ScanTool({ open, onOpenChange, onDone }: { open: boolean; onOpen
             </ol>
           )}
           {t.loading && (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Spinner /> ছবি খোলা হচ্ছে…
-            </p>
+            <ToolHint className="flex items-center gap-2">
+              <Spinner /> ছবি প্রস্তুত হচ্ছে…
+            </ToolHint>
           )}
           {t.pages.length < MAX_SCAN_PAGES && (
-            <ImagePicker
-              multiple
-              disabled={t.loading}
-              onPick={t.addFiles}
-              cameraLabel={t.pages.length ? "আরও পৃষ্ঠা তুলুন" : "ক্যামেরায় ছবি তুলুন"}
-            />
+            <ImagePicker multiple compact={t.pages.length > 0} disabled={t.loading} onPick={t.addFiles} cameraLabel={t.pages.length ? "Add Page" : "Scan Page"} />
           )}
         </>
       )}

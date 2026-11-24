@@ -82,7 +82,7 @@ export type JobKind = (typeof JOB_KINDS)[number]
 export const JOB_KIND_LABELS: Record<JobKind, string> = {
   document: "ডকুমেন্ট",
   "id-card": "NID / আইডি কার্ড কপি",
-  scan: "ক্যামেরা স্ক্যান",
+  scan: "ডকুমেন্ট স্ক্যান",
   "photo-sheet": "পাসপোর্ট ছবি",
 }
 
